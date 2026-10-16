@@ -191,7 +191,7 @@ Un perfil define el enrutado completo: modelo, proveedor y esfuerzo del orquesta
 5. **Perfiles:** comparativas de §6.
 6. **Agentes:** misma clase de tarea en Claude Code, OpenCode y gentle-shell.
 7. **Git:** tokens por commit, por línea neta y por PR; sesiones sin commit («tokens huérfanos»).
-8. **Herramientas:** llamadas, errores y tiempo por herramienta.
+8. **Herramientas:** por herramienta, llamadas, errores, tiempo, tokens, coste y ritmo de consumo, para distinguir las herramientas eficientes de las que consumen en exceso.
 9. **SQL:** consola sobre DuckDB con vistas guardadas.
 
 ### 7.2 Explorador (pivot)
