@@ -366,7 +366,7 @@ El README termina con el badge oficial **«Built with Gentle-AI»**, que el prop
 ```
 
 - **La URL de la imagen se mantiene exactamente así.** El autor de Gentle-AI la usa para encontrar y destacar los proyectos que llevan el badge, así que no se copia la imagen al repo ni se cambia la ruta.
-- Debajo del badge, una línea que menciona gentle-shell y aclara que el proyecto no está afiliado ni avalado por Gentleman Programming. El badge está autorizado; la línea solo evita cualquier ambigüedad sobre afiliación.
+- Debajo del badge, la línea «Independent project, built with Gentle-AI and gentle-shell.», que deja claro en tono natural que es un proyecto independiente.
 - El mismo badge, en pequeño, puede aparecer en la vista «Acerca de» del dashboard.
 
 ---

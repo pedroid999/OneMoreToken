@@ -48,6 +48,5 @@ To be decided.
 </p>
 
 <p align="center">
-  Developed with <a href="https://github.com/Gentleman-Programming/gentle-shell">gentle-shell</a>.
-  Not affiliated with or endorsed by Gentleman Programming.
+  Independent project, built with Gentle-AI and <a href="https://github.com/Gentleman-Programming/gentle-shell">gentle-shell</a>.
 </p>
