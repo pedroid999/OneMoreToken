@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "plans": [
+    {
+      "id": "claude-pro",
+      "label": "Claude Pro",
+      "provider": "anthropic",
+      "monthlyPriceUsd": 20,
+      "reviewedAt": "2026-10-20",
+      "windows": [
+        {
+          "kind": "five_hours",
+          "limit": {
+            "unit": "estimated"
+          }
+        },
+        {
+          "kind": "weekly",
+          "limit": {
+            "unit": "estimated"
+          }
+        }
+      ]
+    },
+    {
+      "id": "claude-max-5x",
+      "label": "Claude Max 5x",
+      "provider": "anthropic",
+      "monthlyPriceUsd": 100,
+      "reviewedAt": "2026-10-20",
+      "windows": [
+        {
+          "kind": "five_hours",
+          "limit": {
+            "unit": "estimated"
+          }
+        },
+        {
+          "kind": "weekly",
+          "limit": {
+            "unit": "estimated"
+          }
+        }
+      ]
+    },
+    {
+      "id": "claude-max-20x",
+      "label": "Claude Max 20x",
+      "provider": "anthropic",
+      "monthlyPriceUsd": 200,
+      "reviewedAt": "2026-10-20",
+      "windows": [
+        {
+          "kind": "five_hours",
+          "limit": {
+            "unit": "estimated"
+          }
+        },
+        {
+          "kind": "weekly",
+          "limit": {
+            "unit": "estimated"
+          }
+        }
+      ]
+    },
+    {
+      "id": "opencode-go",
+      "label": "OpenCode Go",
+      "provider": "opencode",
+      "monthlyPriceUsd": null,
+      "reviewedAt": "2026-10-20",
+      "windows": [
+        {
+          "kind": "five_hours",
+          "limit": {
+            "unit": "usd",
+            "value": 12
+          }
+        },
+        {
+          "kind": "weekly",
+          "limit": {
+            "unit": "usd",
+            "value": 30
+          }
+        },
+        {
+          "kind": "monthly",
+          "limit": {
+            "unit": "usd",
+            "value": 60
+          }
+        }
+      ]
+    }
+  ]
+}
