@@ -67,10 +67,17 @@ export async function migrate(db: Database, dir: string = MIGRATIONS_DIR): Promi
       ]);
       await db.run("COMMIT");
     } catch (error) {
-      await db.run("ROLLBACK");
-      throw new Error(`Migration ${migration.name} failed: ${(error as Error).message}`, {
-        cause: error,
-      });
+      // Never let a failing ROLLBACK hide the error that broke the migration.
+      let rollbackNote = "";
+      try {
+        await db.run("ROLLBACK");
+      } catch (rollbackError) {
+        rollbackNote = ` (rollback also failed: ${(rollbackError as Error).message})`;
+      }
+      throw new Error(
+        `Migration ${migration.name} failed: ${(error as Error).message}${rollbackNote}`,
+        { cause: error },
+      );
     }
     applied.push(migration);
   }

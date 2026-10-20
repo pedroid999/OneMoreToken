@@ -107,3 +107,32 @@ describe("table schemas", () => {
     db.close();
   });
 });
+
+describe("migrate error reporting", () => {
+  it("keeps the original migration error when ROLLBACK fails too", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omt-mig-"));
+    writeFileSync(join(dir, "001_broken.sql"), "BROKEN;");
+    const original = new Error("syntax error at BROKEN");
+    const fake = {
+      async run(sql: string) {
+        if (sql === "BROKEN;") throw original;
+        if (sql === "ROLLBACK") throw new Error("no transaction is active");
+      },
+      async all() {
+        return [];
+      },
+      close() {},
+    };
+
+    const failure = await migrate(fake, dir).then(
+      () => undefined,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure?.message).toBe(
+      "Migration 001_broken.sql failed: syntax error at BROKEN (rollback also failed: no transaction is active)",
+    );
+    expect(failure?.cause).toBe(original);
+  });
+});
