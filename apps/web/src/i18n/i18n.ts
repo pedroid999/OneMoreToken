@@ -15,17 +15,22 @@ export interface KeyValueStorage {
 const isLanguage = (value: string | null | undefined): value is Language =>
   SUPPORTED_LANGUAGES.includes(value as Language);
 
-/** Stored choice first, then the browser languages, then Spanish (spec §8.5). */
+/**
+ * Stored choice first, then the browser languages, then Spanish (spec §8.5).
+ * Serialized into the pre-paint boot script (src/prefs/boot.ts): keep it self-contained.
+ */
 export function resolveInitialLanguage(
   stored: string | null,
   browserLanguages: readonly string[],
 ): Language {
-  if (isLanguage(stored)) return stored;
+  const supported = (value: string | null | undefined): value is Language =>
+    value === "es" || value === "en";
+  if (supported(stored)) return stored;
   for (const tag of browserLanguages) {
     const base = tag.toLowerCase().split("-")[0];
-    if (isLanguage(base)) return base;
+    if (supported(base)) return base;
   }
-  return DEFAULT_LANGUAGE;
+  return "es";
 }
 
 export interface CreateI18nOptions {
