@@ -1,0 +1,13 @@
+{
+  "name": "@omt/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Schema, migrations, pricing, quota windows, profile attribution",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
