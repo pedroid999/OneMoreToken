@@ -6,7 +6,7 @@
   A local dashboard to explore how you use AI coding agents: tokens, cost, subscription quotas and the agent profiles behind them.
 </p>
 
-> **Status:** early development. Nothing here is usable yet.
+> **Status:** phase 0 (foundation). The schema, design system and server skeleton are in place; session ingestion arrives in phase 1, so there is no data to explore yet.
 
 ## What it does
 
@@ -23,12 +23,31 @@ Everything runs locally. Nothing leaves your machine.
 
 ## Getting started
 
-Coming soon.
+Requirements: Node 22+ and pnpm.
 
 ```bash
-pnpm install
-pnpm omt ingest
-pnpm omt serve
+pnpm install     # install dependencies
+pnpm dev         # web dev server and `omt serve` together, with reload
+pnpm omt serve   # API server only (http://127.0.0.1:7317)
+pnpm check       # typecheck + lint + tests
+```
+
+`pnpm omt ingest` (reading your local agent sessions) arrives in phase 1. Run `pnpm omt --help` for every command and option.
+
+### Where your data lives
+
+- The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
+- The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
+- Agent session files are only read, never modified.
+
+### Keep your Claude Code history
+
+By default Claude Code deletes transcripts older than 30 days (`cleanupPeriodDays`), and One More Token can only analyze what is still on disk. Raise the limit in `~/.claude/settings.json`:
+
+```json
+{
+  "cleanupPeriodDays": 365
+}
 ```
 
 ## Contributing

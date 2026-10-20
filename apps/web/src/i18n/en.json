@@ -1,0 +1,99 @@
+{
+  "app": {
+    "name": "One More Token",
+    "tagline": "Just one more token."
+  },
+  "nav": {
+    "label": "Views",
+    "summary": "Summary",
+    "burnRate": "Burn rate",
+    "explorer": "Explorer",
+    "session": "Session",
+    "profiles": "Profiles",
+    "agents": "Agents",
+    "git": "Git",
+    "tools": "Tools",
+    "sql": "SQL",
+    "settings": "Settings",
+    "about": "About"
+  },
+  "view": {
+    "upcoming": "This view arrives in phase {{phase}}.",
+    "upcomingHint": "Track progress in docs/spec.md, section 12."
+  },
+  "summary": {
+    "title": "How am I doing?",
+    "empty": {
+      "title": "No sessions yet",
+      "body": "Ingest your local agent sessions to see tokens, cost and quotas.",
+      "command": "pnpm omt ingest"
+    }
+  },
+  "session": {
+    "count_zero": "{{count}} sessions",
+    "count_one": "{{count}} session",
+    "count_other": "{{count}} sessions"
+  },
+  "quota": {
+    "estimated": "estimated",
+    "window": {
+      "fiveHours": "5-hour window",
+      "weekly": "weekly window",
+      "monthly": "monthly window"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": {
+      "label": "Theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "darkVariant": {
+      "label": "Dark variant",
+      "wave": "Wave",
+      "dragon": "Dragon"
+    },
+    "density": {
+      "label": "Density",
+      "comfortable": "Comfortable",
+      "compact": "Compact"
+    },
+    "language": {
+      "label": "Language"
+    }
+  },
+  "language": {
+    "es": "Español",
+    "en": "English"
+  },
+  "status": {
+    "label": "Status",
+    "range": "range: {{range}}",
+    "rangeLast7Days": "last 7 days",
+    "filters_zero": "no filters",
+    "filters_one": "{{count}} filter",
+    "filters_other": "{{count}} filters",
+    "ingestIdle": "ingest: idle",
+    "theme": "theme: {{theme}}"
+  },
+  "common": {
+    "loading": "Loading…",
+    "retry": "Retry",
+    "empty": "Nothing to show yet"
+  },
+  "error": {
+    "title": "Something failed",
+    "apiUnreachable": "Cannot reach the local API. Start it with pnpm omt serve."
+  },
+  "about": {
+    "title": "About",
+    "body": "A local dashboard to explore how you use AI coding agents: tokens, cost, quotas and profiles.",
+    "independent": "Independent project, built with Gentle-AI and gentle-shell.",
+    "badgeAlt": "Built with Gentle-AI"
+  },
+  "a11y": {
+    "skipToContent": "Skip to content"
+  }
+}
