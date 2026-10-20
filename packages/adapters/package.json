@@ -1,0 +1,13 @@
+{
+  "name": "@omt/adapters",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One adapter per agent",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

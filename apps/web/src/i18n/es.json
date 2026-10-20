@@ -1,0 +1,99 @@
+{
+  "app": {
+    "name": "One More Token",
+    "tagline": "Solo un token más."
+  },
+  "nav": {
+    "label": "Vistas",
+    "summary": "Resumen",
+    "burnRate": "Burn rate",
+    "explorer": "Explorador",
+    "session": "Sesión",
+    "profiles": "Perfiles",
+    "agents": "Agentes",
+    "git": "Git",
+    "tools": "Herramientas",
+    "sql": "SQL",
+    "settings": "Ajustes",
+    "about": "Acerca de"
+  },
+  "view": {
+    "upcoming": "Esta vista llega en la fase {{phase}}.",
+    "upcomingHint": "Consulta el avance en docs/spec.md, sección 12."
+  },
+  "summary": {
+    "title": "¿Cómo voy?",
+    "empty": {
+      "title": "Todavía no hay sesiones",
+      "body": "Ingiere las sesiones locales de tus agentes para ver tokens, coste y cuotas.",
+      "command": "pnpm omt ingest"
+    }
+  },
+  "session": {
+    "count_zero": "{{count}} sesiones",
+    "count_one": "{{count}} sesión",
+    "count_other": "{{count}} sesiones"
+  },
+  "quota": {
+    "estimated": "estimado",
+    "window": {
+      "fiveHours": "ventana de 5 horas",
+      "weekly": "ventana semanal",
+      "monthly": "ventana mensual"
+    }
+  },
+  "settings": {
+    "title": "Ajustes",
+    "theme": {
+      "label": "Tema",
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Oscuro"
+    },
+    "darkVariant": {
+      "label": "Variante oscura",
+      "wave": "Wave",
+      "dragon": "Dragon"
+    },
+    "density": {
+      "label": "Densidad",
+      "comfortable": "Cómoda",
+      "compact": "Compacta"
+    },
+    "language": {
+      "label": "Idioma"
+    }
+  },
+  "language": {
+    "es": "Español",
+    "en": "English"
+  },
+  "status": {
+    "label": "Estado",
+    "range": "rango: {{range}}",
+    "rangeLast7Days": "últimos 7 días",
+    "filters_zero": "sin filtros",
+    "filters_one": "{{count}} filtro",
+    "filters_other": "{{count}} filtros",
+    "ingestIdle": "ingesta: en reposo",
+    "theme": "tema: {{theme}}"
+  },
+  "common": {
+    "loading": "Cargando…",
+    "retry": "Reintentar",
+    "empty": "Todavía no hay nada que mostrar"
+  },
+  "error": {
+    "title": "Algo ha fallado",
+    "apiUnreachable": "No se puede conectar con la API local. Arráncala con pnpm omt serve."
+  },
+  "about": {
+    "title": "Acerca de",
+    "body": "Un panel local para explorar cómo usas los agentes de código: tokens, coste, cuotas y perfiles.",
+    "independent": "Independent project, built with Gentle-AI and gentle-shell.",
+    "badgeAlt": "Built with Gentle-AI"
+  },
+  "a11y": {
+    "skipToContent": "Saltar al contenido"
+  }
+}

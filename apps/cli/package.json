@@ -1,0 +1,19 @@
+{
+  "name": "@omt/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "omt ingest | watch | serve",
+  "bin": {
+    "omt": "./src/main.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts serve",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@omt/core": "workspace:^",
+    "hono": "^4.13.13"
+  }
+}
