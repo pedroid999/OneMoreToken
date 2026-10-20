@@ -29,11 +29,11 @@ describe("defaultDatabasePath", () => {
 });
 
 describe("parseServeOptions", () => {
-  it("defaults to 127.0.0.1:4317 and the default database path", () => {
+  it("defaults to 127.0.0.1:7317 and the default database path", () => {
     expect(parseServeOptions([], {}, HOME)).toEqual({
       ok: true,
       options: {
-        port: 4317,
+        port: 7317,
         host: "127.0.0.1",
         db: join(HOME, ".local", "share", "one-more-token", "omt.duckdb"),
         help: false,

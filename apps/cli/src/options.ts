@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
-export const DEFAULT_PORT = 4317;
+/** Not 4317/4318: those are the OpenTelemetry (OTLP) collector ports. */
+export const DEFAULT_PORT = 7317;
 /** Local only by default (spec §10). */
 export const DEFAULT_HOST = "127.0.0.1";
 

@@ -28,7 +28,7 @@ Requirements: Node 22+ and pnpm.
 ```bash
 pnpm install     # install dependencies
 pnpm dev         # web dev server and `omt serve` together, with reload
-pnpm omt serve   # API server only (http://127.0.0.1:4317)
+pnpm omt serve   # API server only (http://127.0.0.1:7317)
 pnpm check       # typecheck + lint + tests
 ```
 

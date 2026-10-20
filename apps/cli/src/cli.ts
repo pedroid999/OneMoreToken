@@ -89,7 +89,11 @@ async function serveCommand(args: string[], io: CliIo, deps: CliDeps): Promise<n
   let server: RunningServer | undefined;
   try {
     db = await openMigratedDatabase(parsed.options);
-    server = await startServer(createApp(db), parsed.options.host, parsed.options.port);
+    server = await startServer(
+      createApp(db, { allowedHosts: [parsed.options.host] }),
+      parsed.options.host,
+      parsed.options.port,
+    );
     io.stdout(
       `omt serve: listening on http://${urlHost(server.host)}:${server.port} (database: ${parsed.options.db})\n`,
     );
