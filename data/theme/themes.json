@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "defaults": {
+    "light": "lotus",
+    "dark": "wave"
+  },
+  "themes": {
+    "wave": {
+      "label": "Kanagawa Wave",
+      "appearance": "dark",
+      "source": "~/.gentle-shell/agent/themes/kanagawa.json (gentle-shell) and Zellij built-in kanagawa",
+      "colors": {
+        "bg": "#1F1F28",
+        "surface": "#2A2A37",
+        "surface-raised": "#363646",
+        "selection": "#223249",
+        "border": "#54546D",
+        "border-strong": "#938AA9",
+        "fg": "#DCD7BA",
+        "fg-muted": "#A69FB8",
+        "accent": "#86A2DA",
+        "success": "#98BB6C",
+        "warning": "#FF9E3B",
+        "danger": "#FF777B",
+        "info": "#7FB4CA"
+      },
+      "chart": [
+        "#7E9CD8",
+        "#98BB6C",
+        "#E6C384",
+        "#D27E99",
+        "#FFA066",
+        "#957FB8",
+        "#7AA89F",
+        "#E46876",
+        "#7FB4CA",
+        "#C0A36E"
+      ],
+      "adjustments": {
+        "fg-muted": {
+          "from": "#938AA9",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "accent": {
+          "from": "#7E9CD8",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "danger": {
+          "from": "#FF5D62",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        }
+      }
+    },
+    "dragon": {
+      "label": "Kanagawa Dragon",
+      "appearance": "dark",
+      "source": "kanagawa.nvim dragon palette",
+      "colors": {
+        "bg": "#181616",
+        "surface": "#282727",
+        "surface-raised": "#393836",
+        "selection": "#223249",
+        "border": "#625E5A",
+        "border-strong": "#7A8382",
+        "fg": "#C5C9C5",
+        "fg-muted": "#A6A49C",
+        "accent": "#8EA6B2",
+        "success": "#8AAB8A",
+        "warning": "#C4B28A",
+        "danger": "#D1938F",
+        "info": "#92A7A5"
+      },
+      "chart": [
+        "#8BA4B0",
+        "#87A987",
+        "#C4B28A",
+        "#A292A3",
+        "#B6927B",
+        "#8992A7",
+        "#8EA4A2",
+        "#C4746E",
+        "#949FB5",
+        "#B98D7B"
+      ],
+      "adjustments": {
+        "fg-muted": {
+          "from": "#9E9B93",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "accent": {
+          "from": "#8BA4B0",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "success": {
+          "from": "#87A987",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "danger": {
+          "from": "#C4746E",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "info": {
+          "from": "#8EA4A2",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        }
+      }
+    },
+    "lotus": {
+      "label": "Kanagawa Lotus",
+      "appearance": "light",
+      "source": "kanagawa.nvim lotus palette",
+      "colors": {
+        "bg": "#F2ECBC",
+        "surface": "#E5DDB0",
+        "surface-raised": "#E7DBA0",
+        "selection": "#C9CBD1",
+        "border": "#A09CAC",
+        "border-strong": "#716E61",
+        "fg": "#535363",
+        "fg-muted": "#57554B",
+        "accent": "#455F8C",
+        "success": "#516439",
+        "warning": "#635E34",
+        "danger": "#AB3142",
+        "info": "#386474"
+      },
+      "chart": [
+        "#4D699B",
+        "#688149",
+        "#77713F",
+        "#B35B79",
+        "#B86200",
+        "#624C83",
+        "#597B75",
+        "#C84053",
+        "#478094",
+        "#836F4A"
+      ],
+      "adjustments": {
+        "border": {
+          "from": "#DCD5AC",
+          "reason": "Visible thin panel borders: the reference tone is 1.2:1 on bg"
+        },
+        "fg": {
+          "from": "#545464",
+          "reason": "WCAG AA: 4.5:1 on selection"
+        },
+        "fg-muted": {
+          "from": "#8A8980",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "accent": {
+          "from": "#4D699B",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "success": {
+          "from": "#6F894E",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "warning": {
+          "from": "#77713F",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "danger": {
+          "from": "#C84053",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "info": {
+          "from": "#4E8CA2",
+          "reason": "WCAG AA: 4.5:1 on bg, surface and surface-raised (spec §8.4)"
+        },
+        "chart.2": {
+          "from": "#6F894E",
+          "reason": "WCAG 1.4.11: 3:1 on bg and surfaces"
+        },
+        "chart.5": {
+          "from": "#CC6D00",
+          "reason": "WCAG 1.4.11: 3:1 on bg and surfaces"
+        },
+        "chart.9": {
+          "from": "#4E8CA2",
+          "reason": "WCAG 1.4.11: 3:1 on bg and surfaces"
+        }
+      }
+    }
+  }
+}
