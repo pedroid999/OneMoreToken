@@ -33,5 +33,22 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/web/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noJsxLiterals": {
+              "level": "error",
+              "options": {
+                "allowedStrings": ["·", "/", "|"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
