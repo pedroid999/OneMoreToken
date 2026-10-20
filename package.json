@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm --parallel --filter @omt/web --filter @omt/cli run dev",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "typecheck": "pnpm -r --parallel typecheck",
     "lint": "biome check .",
