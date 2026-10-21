@@ -1,5 +1,9 @@
 import type { Database } from "@omt/core";
 import { Hono } from "hono";
+import { withDatabase } from "./db-queue";
+import { readIngestJson, safeIngestOrigin } from "./ingest/http";
+import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
+import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
 
 export interface Health {
   status: "ok";
@@ -9,6 +13,8 @@ export interface Health {
 export interface AppOptions {
   /** Host names accepted besides loopback, e.g. the address passed with `omt serve --host`. */
   allowedHosts?: readonly string[];
+  /** Discovery dependencies; roots: [] disables real home-directory discovery in tests. */
+  ingest?: IngestServiceOptions;
 }
 
 const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "::1"];
@@ -36,11 +42,35 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
   });
 
   app.get("/api/health", async (c) => {
-    const rows = await db.all<{ version: number | null }>(
-      "SELECT max(version) AS version FROM schema_migrations",
+    const rows = await withDatabase(db, () =>
+      db.all<{ version: number | null }>("SELECT max(version) AS version FROM schema_migrations"),
     );
     const body: Health = { status: "ok", schemaVersion: Number(rows[0]?.version ?? 0) };
     return c.json(body);
+  });
+
+  app.post("/api/ingest", async (c) => {
+    if (!safeIngestOrigin(c.req.header("origin"))) {
+      return c.json({ error: "forbidden origin" }, 403);
+    }
+    if (
+      c.req.header("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json"
+    ) {
+      return c.json({ error: "application/json required" }, 415);
+    }
+    let input: unknown;
+    try {
+      input = await readIngestJson(c.req.raw);
+    } catch {
+      return c.json({ error: INVALID_INGEST_OPTIONS }, 400);
+    }
+    const parsed = validateIngestOptions(input);
+    if (!parsed) return c.json({ error: INVALID_INGEST_OPTIONS }, 400);
+    try {
+      return c.json(await ingestSessions(db, parsed, options.ingest));
+    } catch {
+      return c.json({ error: "ingestion failed" }, 500);
+    }
   });
 
   return app;

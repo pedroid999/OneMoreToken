@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { type Database, migrate, openDatabase } from "@omt/core";
 import { createApp } from "./app";
+import { formatIngestMetrics, type IngestFetch, requestIngest } from "./ingest/client";
+import { DEFAULT_API_URL, parseIngestOptions } from "./ingest-options";
 import { DEFAULT_HOST, DEFAULT_PORT, parseServeOptions, type ServeOptions } from "./options";
 import { type RunningServer, startServer, waitForSignal } from "./server";
 
@@ -14,7 +16,8 @@ export interface CliIo {
 
 export interface CliDeps {
   /** Resolves when `omt serve` should stop. Defaults to SIGINT/SIGTERM. */
-  waitForShutdown(server: RunningServer): Promise<void>;
+  waitForShutdown?(server: RunningServer): Promise<void>;
+  fetch?: IngestFetch;
 }
 
 const EXIT_OK = 0;
@@ -29,7 +32,7 @@ Usage: omt <command> [options]
 
 Commands:
   serve     Open the database, apply migrations and start the dashboard API
-  ingest    Ingest local agent sessions (phase 1)
+  ingest    Ask the running server to ingest local agent metrics
   watch     Ingest continuously while serving (phase 1)
 
 Options for serve:
@@ -37,6 +40,14 @@ Options for serve:
   --host <h>      Address to bind (default ${DEFAULT_HOST}, local only)
   --db <path>     DuckDB file (default $OMT_DB, else
                   \${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb)
+
+Options for ingest (start omt serve first):
+  --url <url>           Loopback HTTP API URL (default ${DEFAULT_API_URL})
+  --agent <agent>       claude-code, gentle-shell or pi (default: all)
+  --path <directory>    Absolute source directory; requires --agent
+  --since <timestamp>   ISO timestamp: select files by modification time only
+                        Defaults: ~/.claude/projects/, ~/.gentle-shell/agent/sessions/,
+                        ~/.pi/agent/sessions/. Source files are read-only; metrics only.
 
 Global options:
   -h, --help      Show this help
@@ -62,6 +73,7 @@ export async function run(
     case "serve":
       return serveCommand(args, io, deps);
     case "ingest":
+      return ingestCommand(args, io, deps);
     case "watch":
       io.stderr(
         `omt ${command}: not implemented yet; it arrives in phase 1 (see docs/spec.md §12).\n`,
@@ -75,6 +87,23 @@ export async function run(
 function usageError(io: CliIo, prefix: string, message: string): number {
   io.stderr(`${prefix}: ${message}\n${HELP_HINT}\n`);
   return EXIT_USAGE;
+}
+
+async function ingestCommand(args: string[], io: CliIo, deps: CliDeps): Promise<number> {
+  const parsed = parseIngestOptions(args);
+  if (!parsed.ok) return usageError(io, "omt ingest", parsed.error);
+  if (parsed.options.help) {
+    io.stdout(USAGE);
+    return EXIT_OK;
+  }
+  try {
+    const metrics = await requestIngest(parsed.options.url, parsed.options.ingest, deps.fetch);
+    io.stdout(formatIngestMetrics(metrics));
+    return EXIT_OK;
+  } catch {
+    io.stderr("omt ingest: request failed; check that omt serve is running.\n");
+    return EXIT_USAGE;
+  }
 }
 
 async function serveCommand(args: string[], io: CliIo, deps: CliDeps): Promise<number> {
@@ -97,7 +126,7 @@ async function serveCommand(args: string[], io: CliIo, deps: CliDeps): Promise<n
     io.stdout(
       `omt serve: listening on http://${urlHost(server.host)}:${server.port} (database: ${parsed.options.db})\n`,
     );
-    await deps.waitForShutdown(server);
+    await (deps.waitForShutdown ?? (() => waitForSignal()))(server);
     return EXIT_OK;
   } catch (error) {
     io.stderr(`omt serve: ${(error as Error).message}\n`);

@@ -6,7 +6,7 @@
   A local dashboard to explore how you use AI coding agents: tokens, cost, subscription quotas and the agent profiles behind them.
 </p>
 
-> **Status:** phase 0 (foundation). The schema, design system and server skeleton are in place; session ingestion arrives in phase 1, so there is no data to explore yet.
+> **Status:** phase 1 in progress. Claude Code and gentle-shell/Pi metrics ingestion is available; the summary dashboard is next.
 
 ## What it does
 
@@ -32,7 +32,36 @@ pnpm omt serve   # API server only (http://127.0.0.1:7317)
 pnpm check       # typecheck + lint + tests
 ```
 
-`pnpm omt ingest` (reading your local agent sessions) arrives in phase 1. Run `pnpm omt --help` for every command and option.
+### Ingest local metrics
+
+Start `pnpm omt serve` first. In another terminal:
+
+```bash
+pnpm omt ingest
+pnpm omt ingest --since 2026-10-09T00:00:00Z
+pnpm omt ingest --agent pi --path /absolute/session-directory
+pnpm omt ingest --url http://127.0.0.1:7318 --agent claude-code
+```
+
+The CLI is an HTTP client, not another DuckDB writer (spec §11.1). `--url` accepts only loopback HTTP addresses (`localhost`, `127.0.0.1`, `[::1]`), without credentials, query strings or redirects. By default the server recursively discovers `~/.claude/projects/`, `~/.gentle-shell/agent/sessions/` and `~/.pi/agent/sessions/`; absent defaults are ignored. `--agent` limits discovery to one adapter. `--path` requires `--agent` and an absolute directory. Symlink files and directories (including linked-home ancestors) are not followed, avoiding loops and duplicate linked homes.
+
+`--since` accepts an ISO timestamp with timezone and selects files by **modification time only**, inclusively. It does not filter individual turns, delete older snapshots, or define the dashboard period. Ingestion reads one whole file at a time without writing or locking the source. Unchanged content and adapter versions are skipped; appended or rewritten files replace their previous metrics snapshot on the next run. Corrupt rows become fixed diagnostics and do not stop other rows/files. Only metrics and structural metadata are persisted, never message text, titles, tool arguments/results or raw exceptions (spec §3, §10).
+
+Each successful request prints exactly one line, for example:
+
+```text
+omt ingest: files=3 persisted=1 skipped=1 failed=1 issues=2
+```
+
+Exit status is 0 for a successful API request, even with counted file issues; 1 for invalid options or API/network failures. `watch` remains a stub (exit 2). Run `pnpm omt --help` for all options.
+
+#### Ingestion API contract
+
+`POST /api/ingest` accepts an `application/json` object with optional `agent` (`claude-code`, `gentle-shell`, `pi`), `path` (absolute directory, requires `agent`), and `since` (ISO timestamp with timezone). Unknown fields, malformed JSON and bodies exceeding 16 KiB return 400 before discovery or database access. Host protection remains enabled; hostile browser Origins return 403 and non-JSON content returns 415. Loopback HTTP Origins, including Vite's `http://localhost:5173`, are accepted; no permissive CORS headers are emitted.
+
+The response is `IngestMetrics`, exported from `apps/cli/src/ingest/service.ts`: `{ files, persisted, skipped, failed, issues }`, all nonnegative integer counters for this request. `files` counts selected JSONL files attempted; `persisted`/`skipped` are checkpoint outcomes; `failed` counts file processing/directory discovery failures; `issues` counts newly parsed row issues plus those failures. Missing defaults and symlinks are ignored. Stored issues in unchanged files are not recounted. Filesystem/parser failures produce only safe counters, with no source paths or exception details in the response.
+
+`createApp(db, { ingest: { roots, now } })` supports injected discovery roots and time; `roots: []` prevents home discovery in tests. All ingestion requests and health database reads share `withDatabase<T>(db, operation)` from `apps/cli/src/db-queue.ts`. Future summary handlers must use this queue too. Source normalization and atomic snapshot persistence reuse the core `ingestSource` contract.
 
 ### Where your data lives
 
