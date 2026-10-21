@@ -1,0 +1,14 @@
+{"type":"session","version":3,"id":"synthetic-session","timestamp":"2026-01-01T00:00:00.000Z","cwd":"/synthetic/project"}
+{"type":"model_change","id":"model-a","parentId":null,"timestamp":"2026-01-01T00:00:00.000Z","provider":"synthetic","modelId":"model-a"}
+{"type":"thinking_level_change","id":"effort-a","parentId":"model-a","timestamp":"2026-01-01T00:00:00.000Z","thinkingLevel":"high"}
+{"type":"message","id":"user","parentId":"effort-a","timestamp":"2026-01-01T00:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"PRIVATE_SENTINEL"}],"timestamp":1767225601000}}
+{"type":"message","id":"assistant","parentId":"user","timestamp":"2026-01-01T00:00:02.000Z","message":{"role":"assistant","api":"claude-bridge","provider":"synthetic","model":"model-a","content":[{"type":"text","text":"PRIVATE_SENTINEL"},{"type":"toolCall","id":"call-ok","name":"read","arguments":{"private":"PRIVATE_SENTINEL"}},{"type":"toolCall","id":"call-error","name":"execute","arguments":{"private":"PRIVATE_SENTINEL"}},{"type":"toolCall","id":"call-unresolved","name":"pending","arguments":{}}],"usage":{"input":100,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":190,"reasoning":7,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse"}}
+{"type":"message","id":"result-ok","parentId":"assistant","timestamp":"2026-01-01T00:00:03.000Z","message":{"role":"toolResult","toolCallId":"call-ok","toolName":"read","isError":false,"content":[{"type":"text","text":"PRIVATE_SENTINEL"}]}}
+{"type":"message","id":"result-error","parentId":"result-ok","timestamp":"2026-01-01T00:00:04.000Z","message":{"role":"toolResult","toolCallId":"call-error","toolName":"execute","isError":true,"durationMs":12,"content":[{"type":"text","text":"PRIVATE_SENTINEL"}]}}
+PRIVATE_SENTINEL malformed JSON
+{"type":"model_change","id":"model-b","parentId":"result-error","timestamp":"2026-01-01T00:00:05.000Z","provider":"synthetic","modelId":"unpriced"}
+{"type":"thinking_level_change","id":"effort-b","parentId":"model-b","timestamp":"2026-01-01T00:00:05.000Z","thinkingLevel":"low"}
+{"type":"message","id":"assistant-b","parentId":"effort-b","timestamp":"2026-01-01T00:00:06.000Z","message":{"role":"assistant","content":[],"usage":{"input":1,"output":2,"cacheRead":3,"cacheWrite":4,"totalTokens":10,"cost":{"total":0.25}}}}
+{"type":"message","id":"assistant-b","parentId":"effort-b","timestamp":"2026-01-01T00:00:06.000Z","message":{"role":"assistant","content":[],"usage":{"input":1,"output":2,"cacheRead":3,"cacheWrite":4,"totalTokens":10,"cost":{"total":0.25}}}}
+{"type":"custom","id":"custom","parentId":"assistant-b","timestamp":"2026-01-01T00:00:07.000Z","customType":"profile","data":{"name":"PRIVATE_SENTINEL"}}
+{"type":"session_info","id":"info","parentId":"custom","timestamp":"2026-01-01T00:00:08.000Z","name":"PRIVATE_SENTINEL"}
