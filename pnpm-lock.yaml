@@ -82,7 +82,11 @@ importers:
         specifier: ^8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15)
 
-  packages/adapters: {}
+  packages/adapters:
+    dependencies:
+      '@omt/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core:
     dependencies:
