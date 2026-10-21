@@ -39,6 +39,7 @@ beforeEach(() => {
             turns: 0,
             usageTurns: 0,
             tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+            pricing: { basis: "historical", observedAt: null, staleUsageTurns: 0 },
             costs: {
               reported: { usd: null, known: 0, unknown: 0 },
               computed: { usd: null, known: 0, unknown: 0 },

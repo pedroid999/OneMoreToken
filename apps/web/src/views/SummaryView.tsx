@@ -132,7 +132,13 @@ export function SummaryView() {
             <dl className="summary__costs">
               {(["reported", "computed"] as const).map((key) => (
                 <div key={key}>
-                  <dt>{t(`summary.${key}`)}</dt>
+                  <dt>
+                    {t(
+                      key === "computed" && data.pricing.basis === "current-reference"
+                        ? "summary.estimatedApiEquivalent"
+                        : `summary.${key}`,
+                    )}
+                  </dt>
                   <dd>
                     {data.costs[key].usd === null
                       ? t("summary.unknown")
@@ -150,6 +156,26 @@ export function SummaryView() {
                 </div>
               ))}
             </dl>
+            {data.pricing.basis === "current-reference" ? (
+              <>
+                <p className="summary__muted">
+                  {t("summary.referenceDate", {
+                    date: dayFormat.format(new Date(`${data.pricing.observedAt}T00:00:00Z`)),
+                  })}
+                </p>
+                <p className="summary__muted">{t("summary.referenceNote")}</p>
+                <p className="summary__muted">{t("summary.referenceAssumptions")}</p>
+              </>
+            ) : null}
+            {data.pricing.staleUsageTurns > 0 ? (
+              <p className="summary__warning">
+                {t("summary.stalePricing", {
+                  count: data.pricing.staleUsageTurns,
+                  formatted: formatNumber(data.pricing.staleUsageTurns, language),
+                })}{" "}
+                <code>{t("summary.empty.command")}</code>
+              </p>
+            ) : null}
             {data.costs.computed.unknown > 0 ? (
               <p className="summary__warning">{t("summary.missingPricing")}</p>
             ) : null}

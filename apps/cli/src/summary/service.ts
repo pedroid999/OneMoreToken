@@ -1,4 +1,11 @@
-import { type Database, TurnSchema } from "@omt/core";
+import {
+  type Database,
+  hashContent,
+  loadPricing,
+  type PricingFile,
+  PricingFileSchema,
+  TurnSchema,
+} from "@omt/core";
 import { withDatabase } from "../db-queue";
 import type { CostCoverage, Summary, SummaryPeriod } from "./contract";
 
@@ -45,10 +52,19 @@ function numeric(value: unknown, integer = true): number {
 }
 
 /** One queue operation covers all queries: no reads inside an ingestion transaction. */
-export function readSummary(db: Database, period: SummaryPeriod): Promise<Summary> {
+export function readSummary(
+  db: Database,
+  period: SummaryPeriod,
+  pricing?: PricingFile,
+): Promise<Summary> {
   return withDatabase(db, async () => {
+    const catalog = PricingFileSchema.parse(pricing ?? loadPricing());
+    const catalogHash = hashContent(JSON.stringify(catalog));
     const params = [period.from, period.to];
+    // Both joins are to primary keys: at most one checkpoint per source file, no fanout.
     const selected = `FROM turns t LEFT JOIN usage u ON u.turn_id = t.id
+      LEFT JOIN sessions s ON s.id = t.session_id
+      LEFT JOIN ingest_checkpoints c ON c.source_id = s.source_id
       WHERE t.ts >= $1::TIMESTAMPTZ AND t.ts < $2::TIMESTAMPTZ`;
     const [row] = await db.all(
       `SELECT count(DISTINCT t.session_id) AS sessions,
@@ -57,9 +73,11 @@ export function readSummary(db: Database, period: SummaryPeriod): Promise<Summar
       coalesce(sum(cache_read_tokens), 0) AS cache_read,
       coalesce(sum(cache_write_tokens), 0) AS cache_write,
       sum(reported_cost_usd) AS reported, count(reported_cost_usd) AS reported_known,
-      sum(computed_cost_usd) AS computed, count(computed_cost_usd) AS computed_known
+      sum(CASE WHEN c.pricing_hash = $3 THEN computed_cost_usd END) AS computed,
+      count(CASE WHEN c.pricing_hash = $3 THEN computed_cost_usd END) AS computed_known,
+      count(CASE WHEN u.turn_id IS NOT NULL AND c.pricing_hash IS DISTINCT FROM $3 THEN 1 END) AS stale
       ${selected}`,
-      params,
+      [...params, catalogHash],
     );
     if (!row) throw new Error("missing summary");
     const usageTurns = numeric(row.usage_turns);
@@ -110,6 +128,11 @@ export function readSummary(db: Database, period: SummaryPeriod): Promise<Summar
       usageTurns,
       tokens,
       costs: { reported: cost("reported"), computed: cost("computed") },
+      pricing: {
+        basis: catalog.basis ?? "historical",
+        observedAt: catalog.observedAt ?? null,
+        staleUsageTurns: numeric(row.stale),
+      },
       days,
       issues,
       quota: { status: "unavailable" },

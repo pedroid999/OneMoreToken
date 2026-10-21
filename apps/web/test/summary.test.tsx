@@ -17,6 +17,7 @@ const empty = (): Summary => ({
   turns: 0,
   usageTurns: 0,
   tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  pricing: { basis: "historical", observedAt: null, staleUsageTurns: 0 },
   costs: {
     reported: { usd: null, known: 0, unknown: 0 },
     computed: { usd: null, known: 0, unknown: 0 },
@@ -104,6 +105,64 @@ describe("Summary", () => {
     expect(screen.getByText(es.summary.quotaUnavailable)).toBeTruthy();
     expect(window.location.search).toBe(search);
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("labels past usage as a reference-date API estimate, distinct from reported zero, in both locales", async () => {
+    fetcher.mockImplementation(async () =>
+      respond({
+        ...success(),
+        pricing: { basis: "current-reference", observedAt: "2026-10-21", staleUsageTurns: 1 },
+      }),
+    );
+    const i18n = await view();
+    await screen.findByText("2 sessions");
+    const search = window.location.search;
+    for (const language of ["en", "es", "en"] as const) {
+      await act(async () => {
+        await i18n.changeLanguage(language);
+      });
+      const catalog = language === "en" ? en : es;
+      const locale = language === "en" ? "en-US" : "es-ES";
+      const costs = screen.getByRole("region", { name: catalog.summary.costs });
+      expect(within(costs).getByText(catalog.summary.estimatedApiEquivalent).tagName).toBe("DT");
+      expect(within(costs).getByText(catalog.summary.reported).tagName).toBe("DT");
+      expect(within(costs).queryByText(catalog.summary.computed)).toBeNull();
+      for (const amount of [0, 12]) {
+        const expected = new Intl.NumberFormat(locale, {
+          style: "currency",
+          currency: "USD",
+        }).format(amount);
+        expect(within(costs).getByText(expected.replace(/\s+/g, " "))).toBeTruthy();
+      }
+      expect(
+        within(costs).getByText(
+          i18n.t("summary.referenceDate", {
+            date: new Intl.DateTimeFormat(locale, {
+              dateStyle: "medium",
+              timeZone: "UTC",
+            }).format(new Date("2026-10-21T00:00:00Z")),
+          }),
+        ),
+      ).toBeTruthy();
+      expect(within(costs).getByText(catalog.summary.referenceNote)).toBeTruthy();
+      expect(within(costs).getByText(catalog.summary.referenceAssumptions)).toBeTruthy();
+      expect(
+        within(costs).getByText(i18n.t("summary.stalePricing", { count: 1, formatted: "1" })),
+      ).toBeTruthy();
+      expect(within(costs).getByText("pnpm omt ingest").tagName).toBe("CODE");
+      expect(within(costs).getByText(catalog.summary.missingPricing)).toBeTruthy();
+      expect(window.location.search).toBe(search);
+    }
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains the historical computed label without current-reference assumptions", async () => {
+    fetcher.mockImplementation(async () => respond(success()));
+    await view();
+    await screen.findByText("2 sessions");
+    expect(screen.getByText(en.summary.computed)).toBeTruthy();
+    expect(screen.queryByText(en.summary.estimatedApiEquivalent)).toBeNull();
+    expect(screen.queryByText(en.summary.referenceNote)).toBeNull();
   });
 
   it("uses safe catalog errors, retry, and labels unknown costs rather than zero", async () => {
