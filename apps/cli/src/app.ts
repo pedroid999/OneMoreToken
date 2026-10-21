@@ -4,6 +4,7 @@ import { withDatabase } from "./db-queue";
 import { readIngestJson, safeIngestOrigin } from "./ingest/http";
 import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
 import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
+import { readSummary, summaryPeriod } from "./summary/service";
 
 export interface Health {
   status: "ok";
@@ -47,6 +48,17 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
     );
     const body: Health = { status: "ok", schemaVersion: Number(rows[0]?.version ?? 0) };
     return c.json(body);
+  });
+
+  app.get("/api/summary", async (c) => {
+    const period = summaryPeriod(new URL(c.req.url).searchParams);
+    if (!period) return c.json({ error: "invalid summary period" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readSummary(db, period));
+    } catch {
+      return c.json({ error: "summary unavailable" }, 500);
+    }
   });
 
   app.post("/api/ingest", async (c) => {

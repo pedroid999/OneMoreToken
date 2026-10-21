@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import en from "../src/i18n/en.json";
 import es from "../src/i18n/es.json";
@@ -20,16 +20,48 @@ async function renderApp(
   const storage = memoryStorage(stored);
   const scheme = fakeColorScheme(prefersDark);
   const i18n = await createI18n({ storage, browserLanguages: ["es-ES"] });
-  render(<App i18n={i18n} env={{ storage, root, matchMedia: scheme.matchMedia }} />);
+  await act(async () => {
+    render(<App i18n={i18n} env={{ storage, root, matchMedia: scheme.matchMedia }} />);
+  });
   return { storage, scheme, i18n };
 }
 
 beforeEach(() => {
   for (const name of ["data-theme", "data-density", "lang"]) root.removeAttribute(name);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            period: { from: "2026-01-01T00:00:00.000Z", to: "2026-01-08T00:00:00.000Z" },
+            sessions: 0,
+            turns: 0,
+            usageTurns: 0,
+            tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+            costs: {
+              reported: { usd: null, known: 0, unknown: 0 },
+              computed: { usd: null, known: 0, unknown: 0 },
+            },
+            days: [],
+            issues: { warning: 0, error: 0, critical: 0 },
+            quota: { status: "unavailable" },
+          }),
+        ),
+    ),
+  );
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("app shell", () => {
+  it("labels the selected 30-day period without counting dates as filters", async () => {
+    await renderApp("/?from=2026-01-01T00:00:00.000Z&to=2026-01-31T00:00:00.000Z");
+    expect(screen.getByText(`rango: ${es.summary.last30Days}`)).toBeTruthy();
+    expect(screen.getByText(es.status.filters_zero)).toBeTruthy();
+  });
   it("offers a skip link to the main content", async () => {
     await renderApp("/");
     const skip = screen.getByRole("link", { name: es.a11y.skipToContent });

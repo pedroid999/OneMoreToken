@@ -6,7 +6,7 @@
   A local dashboard to explore how you use AI coding agents: tokens, cost, subscription quotas and the agent profiles behind them.
 </p>
 
-> **Status:** phase 1 in progress. Claude Code and gentle-shell/Pi metrics ingestion is available; the summary dashboard is next.
+> **Status:** phase 1 in progress. Claude Code and gentle-shell/Pi metrics ingestion and the period summary are available. Quotas and profile attribution arrive in phase 3.
 
 ## What it does
 
@@ -61,7 +61,45 @@ Exit status is 0 for a successful API request, even with counted file issues; 1 
 
 The response is `IngestMetrics`, exported from `apps/cli/src/ingest/service.ts`: `{ files, persisted, skipped, failed, issues }`, all nonnegative integer counters for this request. `files` counts selected JSONL files attempted; `persisted`/`skipped` are checkpoint outcomes; `failed` counts file processing/directory discovery failures; `issues` counts newly parsed row issues plus those failures. Missing defaults and symlinks are ignored. Stored issues in unchanged files are not recounted. Filesystem/parser failures produce only safe counters, with no source paths or exception details in the response.
 
-`createApp(db, { ingest: { roots, now } })` supports injected discovery roots and time; `roots: []` prevents home discovery in tests. All ingestion requests and health database reads share `withDatabase<T>(db, operation)` from `apps/cli/src/db-queue.ts`. Future summary handlers must use this queue too. Source normalization and atomic snapshot persistence reuse the core `ingestSource` contract.
+`createApp(db, { ingest: { roots, now } })` supports injected discovery roots and time; `roots: []` prevents home discovery in tests. All ingestion requests and health database reads share `withDatabase<T>(db, operation)` from `apps/cli/src/db-queue.ts`. Summary reads use this same queue. Source normalization and atomic snapshot persistence reuse the core `ingestSource` contract.
+
+### Period summary
+
+The Summary view reads local aggregates without triggering ingestion (spec §7.1–§7.2, §8.5). Select the last 7 or 30 days; explicit `from` and `to` URL parameters preserve the period through browser history and language changes. Other URL parameters are preserved, but do not filter this phase-1 summary. Dates and daily trends use UTC. Theme and density preferences still apply.
+
+#### Summary API contract
+
+`GET /api/summary?from=2026-01-01T00:00:00Z&to=2026-01-08T00:00:00Z` returns `Summary`, exported from `apps/cli/src/summary/contract.ts` and used as a type by the UI and API tests:
+
+```json
+{
+  "period": { "from": "2026-01-01T00:00:00.000Z", "to": "2026-01-08T00:00:00.000Z" },
+  "sessions": 1, "turns": 2, "usageTurns": 1,
+  "tokens": { "input": 100, "output": 20, "cacheRead": 30, "cacheWrite": 40, "total": 190 },
+  "costs": {
+    "reported": { "usd": 0, "known": 1, "unknown": 0 },
+    "computed": { "usd": null, "known": 0, "unknown": 1 }
+  },
+  "days": [
+    { "date": "2026-01-01", "tokens": 190 },
+    { "date": "2026-01-02", "tokens": 0 },
+    { "date": "2026-01-03", "tokens": 0 },
+    { "date": "2026-01-04", "tokens": 0 },
+    { "date": "2026-01-05", "tokens": 0 },
+    { "date": "2026-01-06", "tokens": 0 },
+    { "date": "2026-01-07", "tokens": 0 }
+  ],
+  "issues": { "warning": 0, "error": 0, "critical": 0 },
+  "quota": { "status": "unavailable" }
+}
+```
+
+- Supply both bounds or neither (default: the rolling seven days ending at request time). Bounds must be finite ISO timestamps with timezone, at most millisecond precision, with `from < to`. The range may intersect at most 366 UTC calendar days. Repeated, missing, invalid or oversized bounds return HTTP 400 with exactly `{"error":"invalid summary period"}` before any database reads. Responses normalize bounds to UTC; URL-encode `+` in timezone offsets.
+- Selection is by **turn timestamp**, inclusive `from`, exclusive `to`, not session start or ingestion time. `sessions` counts distinct sessions having any normalized turn in that period. `turns` counts **all normalized turns**, including user turns, while `usageTurns` counts turns with a usage row (normally assistant messages). Sessions with no turns in the period are excluded. Tools and separately recorded subagent totals are not joined or added again.
+- Token fields are four disjoint categories; `total` sums each exactly once. `days` is ordered, zero-filled UTC calendar dates intersecting the period, with partial first/last days restricted to the exact timestamp bounds.
+- Reported and computed USD are independent sums of **known** costs. `known` and `unknown` count usage rows for each cost independently and sum to `usageTurns`. `usd` is `null` when no costs are known; a partial sum is not a complete bill. Reported zero remains actual zero, not a claim of free usage. Missing computed coverage produces a pricing warning. No cost is inferred for user turns without usage.
+- All numeric JSON fields are nonnegative finite numbers. Integer aggregates (including DuckDB bigint/HUGEINT results) must fit `Number.MAX_SAFE_INTEGER`; USD retains floating-point precision from stored DOUBLE values, but is also rejected above that magnitude. Nonfinite/unsafe aggregates or database failures return HTTP 500 with exactly `{"error":"summary unavailable"}` rather than silently corrupting numbers or exposing exceptions.
+- `issues` counts **all currently stored** ingestion issues by severity, not just issues in the selected turn period. No source paths, messages, content, models or profile guesses are returned. Quota is explicitly unavailable until phase 3; no subscription limits or percentages are fabricated. Summary reads share the ingestion connection and `withDatabase` queue and never mutate data. Successful reads disable HTTP caching.
 
 ### Where your data lives
 
