@@ -45,7 +45,7 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3]);
     expect(await tableNames(db)).toEqual(
       [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
     );
@@ -61,7 +61,7 @@ describe("migrate", () => {
     const ledger = await db.all<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2]);
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3]);
     db.close();
   });
 
@@ -75,9 +75,28 @@ describe("migrate", () => {
     expect(await tableNames(db)).toEqual([...SPEC_TABLES, "schema_migrations"].sort());
     await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
     const before = await db.all("SELECT * FROM sources");
-    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2]);
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3]);
     expect(await db.all("SELECT * FROM sources")).toEqual(before);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
+    db.close();
+  });
+
+  it("upgrades version 2 preserving checkpoint and usage values with a null pricing hash", async () => {
+    const dir = temp("omt-pricing-upgrade-");
+    for (const migration of listMigrations().filter((entry) => entry.version <= 2)) {
+      writeFileSync(join(dir, migration.name), readFileSync(migration.path, "utf8"));
+    }
+    const db = await openDatabase(":memory:");
+    await migrate(db, dir);
+    await db.run("INSERT INTO ingest_checkpoints VALUES ('old', 'hash', 'v1', '2026-01-01')");
+    await db.run("INSERT INTO usage VALUES ('turn', 1, 2, 3, 4, 0, 5)");
+    const usage = await db.all("SELECT * FROM usage");
+    const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3]);
+    expect(await db.all("SELECT * FROM usage")).toEqual(usage);
+    expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
+      checkpoints.map((row) => ({ ...row, pricing_hash: null })),
+    );
     db.close();
   });
 

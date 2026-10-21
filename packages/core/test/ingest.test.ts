@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  calculateCost,
   createIssue,
   createSource,
   type Database,
@@ -121,18 +122,111 @@ describe("metrics-only ingestion", () => {
       source_id: createSource(context).id,
       content_hash: hashContent("synthetic"),
       adapter_version: "1",
+      pricing_hash: hashContent(JSON.stringify(context.pricing)),
       ingested_at: "2026-01-01T00:00:00.000Z",
     });
     expect(await ingestSource(db, "synthetic", context, parse)).toBe("skipped");
     expect(calls).toBe(1);
     expect(await stored()).toEqual(before);
-    await persistBatch(db, batch(), hashContent("synthetic"));
+    await persistBatch(
+      db,
+      batch(),
+      hashContent("synthetic"),
+      hashContent(JSON.stringify(context.pricing)),
+    );
     expect(await stored()).toEqual(before);
     expect(await ingestSource(db, "synthetic", { ...context, adapterVersion: "2" }, parse)).toBe(
       "persisted",
     );
     expect(calls).toBe(2);
     expect((await getCheckpoint(db, createSource(context).id))?.adapter_version).toBe("2");
+  });
+
+  it("reprices unchanged content once per canonical pricing change and upgrades legacy checkpoints", async () => {
+    const changed: ParseContext = {
+      ...context,
+      pricing: {
+        version: 1,
+        currency: "USD",
+        basis: "current-reference",
+        observedAt: "2026-10-21",
+        entries: [
+          {
+            model: "synthetic",
+            provider: "synthetic",
+            validFrom: "2026-10-21",
+            validTo: null,
+            inputPerMTok: 2,
+            outputPerMTok: 3,
+            cacheReadPerMTok: 4,
+            cacheWritePerMTok: 5,
+          },
+        ],
+      },
+    };
+    let calls = 0;
+    const parse = (_text: string, ctx: ParseContext) => {
+      calls++;
+      const snapshot = batch(ctx);
+      const metrics = fixtureRow(snapshot.usage);
+      metrics.computed_cost_usd = calculateCost(
+        metrics,
+        "synthetic",
+        "synthetic",
+        ctx.ingestedAt,
+        ctx.pricing,
+      );
+      return snapshot;
+    };
+    await persistBatch(db, batch(), hashContent("same"));
+    expect((await getCheckpoint(db, createSource(context).id))?.pricing_hash).toBeNull();
+    expect(await ingestSource(db, "same", context, parse)).toBe("persisted");
+    expect(await ingestSource(db, "same", context, parse)).toBe("skipped");
+    const before = await db.all("SELECT * FROM usage");
+    expect(await ingestSource(db, "same", changed, parse)).toBe("persisted");
+    expect(await db.all("SELECT * FROM usage")).toEqual(
+      before.map((row) => ({ ...row, computed_cost_usd: 0.000112 })),
+    );
+    const checkpoint = await getCheckpoint(db, createSource(context).id);
+    expect(checkpoint).toMatchObject({
+      content_hash: hashContent("same"),
+      adapter_version: "1",
+      pricing_hash: hashContent(JSON.stringify(changed.pricing)),
+    });
+    const snapshot = await stored();
+    const reordered = {
+      entries: changed.pricing.entries,
+      observedAt: changed.pricing.observedAt,
+      basis: changed.pricing.basis,
+      currency: changed.pricing.currency,
+      version: changed.pricing.version,
+    };
+    expect(await ingestSource(db, "same", { ...changed, pricing: reordered }, parse)).toBe(
+      "skipped",
+    );
+    expect(calls).toBe(2);
+    expect(await stored()).toEqual(snapshot);
+    const failure = new Error("repricing failure");
+    const failing: Database = {
+      ...db,
+      async run(sql, params) {
+        if (sql.startsWith("INSERT INTO ingest_checkpoints")) throw failure;
+        return db.run(sql, params);
+      },
+    };
+    await expect(ingestSource(failing, "same", context, parse)).rejects.toBe(failure);
+    expect(await stored()).toEqual(snapshot);
+    expect(await getCheckpoint(db, createSource(context).id)).toEqual(checkpoint);
+    expect(await ingestSource(db, "same", changed, parse)).toBe("skipped");
+  });
+
+  it("rejects an invalid pricing hash before mutation for backward-compatible direct callers", async () => {
+    await persistBatch(db, batch(), hashContent("old"));
+    const before = await stored();
+    await expect(persistBatch(db, batch(), hashContent("new"), "invalid")).rejects.toThrow(
+      "Invalid pricing hash",
+    );
+    expect(await stored()).toEqual(before);
   });
 
   it("replaces changed and truncated snapshots without touching another file or agent", async () => {

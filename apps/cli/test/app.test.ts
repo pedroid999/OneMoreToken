@@ -17,7 +17,7 @@ describe("GET /api/health", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/json");
-    expect(await res.json()).toEqual({ status: "ok", schemaVersion: 2 });
+    expect(await res.json()).toEqual({ status: "ok", schemaVersion: 3 });
   });
 
   it("returns 404 for unknown API routes", async () => {

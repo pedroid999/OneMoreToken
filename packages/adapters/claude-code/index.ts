@@ -50,6 +50,8 @@ export const parseClaudeCode: SourceParser = (content, context) => {
   const sessions = new Map<string, NormalizedBatch["sessions"][number]>();
   const turns = new Map<string, NormalizedBatch["turns"][number]>();
   const usage = new Map<string, NormalizedBatch["usage"][number]>();
+  // TTL detail is calculation-only; never add it to the normalized aggregate write count.
+  const oneHourWrites = new Map<string, number>();
   const tools = new Map<string, Tool>();
   const results = new Map<string, Result>();
   const issue = (code: IssueCode, line: string) => {
@@ -102,11 +104,12 @@ export const parseClaudeCode: SourceParser = (content, context) => {
         format_version: context.adapterVersion,
       });
       let metrics: NormalizedBatch["usage"][number] | undefined;
+      let longWrites = oneHourWrites.get(turnId) ?? 0;
       if (type === "assistant" && message.usage != null) {
         const raw = object(message.usage);
         const cache = raw.cache_creation == null ? {} : object(raw.cache_creation);
-        const cacheWrite =
-          count(cache.ephemeral_1h_input_tokens, 0) + count(cache.ephemeral_5m_input_tokens, 0);
+        const observedLongWrites = count(cache.ephemeral_1h_input_tokens, 0);
+        const cacheWrite = observedLongWrites + count(cache.ephemeral_5m_input_tokens, 0);
         metrics = UsageSchema.parse({
           turn_id: turnId,
           input_tokens: count(raw.input_tokens),
@@ -116,6 +119,8 @@ export const parseClaudeCode: SourceParser = (content, context) => {
           reported_cost_usd: null,
           computed_cost_usd: null,
         });
+        if (cacheWrite > metrics.cache_write_tokens) throw new Error();
+        longWrites = Math.max(longWrites, observedLongWrites);
       }
       const pendingTools: Tool[] = [];
       const pendingResults: [string, Result][] = [];
@@ -170,7 +175,7 @@ export const parseClaudeCode: SourceParser = (content, context) => {
           model === null
             ? null
             : calculateCost(
-                metrics,
+                { ...metrics, cache_write_1h_tokens: longWrites },
                 "anthropic",
                 model,
                 previousTurn?.ts ?? turn.ts,
@@ -198,7 +203,10 @@ export const parseClaudeCode: SourceParser = (content, context) => {
           previousTurn.effort ??= turn.effort;
         }
       }
-      if (metrics) usage.set(turnId, metrics);
+      if (metrics) {
+        usage.set(turnId, metrics);
+        oneHourWrites.set(turnId, longWrites);
+      }
       if (type === "assistant" && !metrics && !previous) issue("missing_usage", location);
       for (const tool of pendingTools) if (!tools.has(tool.id)) tools.set(tool.id, tool);
       for (const [id, result] of pendingResults) if (!results.has(id)) results.set(id, result);

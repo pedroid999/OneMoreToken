@@ -194,7 +194,7 @@ describe("GET /api/summary", () => {
     all.mockRestore();
     expect(await (await application.request("/api/health")).json()).toEqual({
       status: "ok",
-      schemaVersion: 2,
+      schemaVersion: 3,
     });
   });
 });

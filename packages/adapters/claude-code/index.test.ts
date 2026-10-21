@@ -27,6 +27,7 @@ const context: ParseContext = {
         outputPerMTok: 2,
         cacheReadPerMTok: 3,
         cacheWritePerMTok: 4,
+        cacheWriteLongPerMTok: 4,
       },
     ],
   },
@@ -110,6 +111,59 @@ describe("Claude Code metrics-only JSONL", () => {
     ];
     const expected = parseClaudeCode(jsonl(...valid), context);
     const actual = parseClaudeCode(jsonl(valid[0], row(bad), valid[1]), context);
+    expect({ ...actual, issues: [] }).toEqual(expected);
+    expect(actual.issues).toEqual([
+      createIssue(actual.source, "invalid_record", "2", context.ingestedAt),
+    ]);
+  });
+
+  it("prices one-hour writes once and retains observed TTL across repeated blocks", () => {
+    const ttlContext: ParseContext = {
+      ...context,
+      pricing: {
+        ...context.pricing,
+        entries: context.pricing.entries.map((entry) => ({ ...entry, cacheWriteLongPerMTok: 8 })),
+      },
+    };
+    const usage = {
+      input_tokens: 100,
+      output_tokens: 2,
+      cache_creation_input_tokens: 30,
+      cache_creation: { ephemeral_1h_input_tokens: 10, ephemeral_5m_input_tokens: 20 },
+    };
+    const first = row({ message: { id: "m", model: "fixture-model", usage } });
+    const repeated = row({
+      message: { id: "m", usage: { ...usage, cache_creation: undefined, output_tokens: 12 } },
+    });
+    const finalModel = row({ message: { id: "m", model: "fixture-model" } });
+    for (const content of [jsonl(first), jsonl(first, first), jsonl(first, repeated, finalModel)]) {
+      const batch = parseClaudeCode(content, ttlContext);
+      expect(batch.issues).toEqual([]);
+      expect(batch.usage).toHaveLength(1);
+      expect(batch.usage[0]).toMatchObject({
+        input_tokens: 100,
+        cache_write_tokens: 30,
+        reported_cost_usd: null,
+        computed_cost_usd: content.includes('"output_tokens":12') ? 0.000284 : 0.000264,
+      });
+    }
+    const missingRate = {
+      ...context,
+      pricing: {
+        ...context.pricing,
+        entries: context.pricing.entries.map(({ cacheWriteLongPerMTok: _rate, ...entry }) => entry),
+      },
+    };
+    expect(parseClaudeCode(jsonl(first), missingRate).usage[0]?.computed_cost_usd).toBeNull();
+    const invalid = row({
+      message: {
+        id: "bad",
+        model: "fixture-model",
+        usage: { ...usage, cache_creation_input_tokens: 9 },
+      },
+    });
+    const actual = parseClaudeCode(jsonl(first, invalid, repeated), ttlContext);
+    const expected = parseClaudeCode(jsonl(first, repeated), ttlContext);
     expect({ ...actual, issues: [] }).toEqual(expected);
     expect(actual.issues).toEqual([
       createIssue(actual.source, "invalid_record", "2", context.ingestedAt),
