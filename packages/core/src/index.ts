@@ -1,4 +1,5 @@
 export * from "./data/files";
+export * from "./data/views";
 export * from "./db/database";
 export * from "./db/migrate";
 export * from "./ingest/batch";

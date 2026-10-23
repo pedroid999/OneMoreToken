@@ -1,0 +1,23 @@
+{
+  "schema": "omt.saved-view/1",
+  "id": "daily-tokens-by-agent",
+  "name": "explorer.presets.dailyTokensByAgent.name",
+  "description": "explorer.presets.dailyTokensByAgent.description",
+  "query": {
+    "metrics": ["total"],
+    "dimensions": ["day", "agent"],
+    "filters": [],
+    "range": "last30Days"
+  },
+  "chart": { "type": "barStacked", "encoding": { "x": "day", "y": "total", "color": "agent" } },
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": { "name": "table" },
+    "mark": { "type": "bar" },
+    "encoding": {
+      "x": { "field": "day", "type": "temporal", "timeUnit": "utcyearmonthdate" },
+      "y": { "field": "total", "type": "quantitative", "stack": "zero" },
+      "color": { "field": "agent", "type": "nominal" }
+    }
+  }
+}

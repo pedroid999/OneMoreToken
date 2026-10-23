@@ -107,11 +107,60 @@ The Summary view reads local aggregates without triggering ingestion (spec §7.1
 - All numeric JSON fields are nonnegative finite numbers. Integer aggregates (including DuckDB bigint/HUGEINT results) must fit `Number.MAX_SAFE_INTEGER`; USD retains floating-point precision from stored DOUBLE values, but is also rejected above that magnitude. Nonfinite/unsafe aggregates or database failures return HTTP 500 with exactly `{"error":"summary unavailable"}` rather than silently corrupting numbers or exposing exceptions.
 - `issues` counts **all currently stored** ingestion issues by severity, not just issues in the selected turn period. No source paths, messages, content, models or profile guesses are returned. Quota is explicitly unavailable until phase 3; no subscription limits or percentages are fabricated. Summary reads share the ingestion connection and `withDatabase` queue and never mutate data. Successful reads disable HTTP caching.
 
+### Explorer API
+
+The pivot backend for the Explorer (spec §7.2). It reads aggregates only, never mutates data, and shares the `withDatabase` queue with ingestion. Types: `ExplorerResponse` in `apps/cli/src/explorer/contract.ts`; body and saved view schemas (`ExplorerQuerySchema`, `SavedViewSchema`) in `packages/core/src/data/views.ts`.
+
+#### `POST /api/explorer/query`
+
+```json
+{
+  "metrics": ["total", "cacheHitRatio"],
+  "dimensions": ["day", "agent"],
+  "filters": [{ "dimension": "tool", "op": "in", "values": ["read"] }],
+  "from": "2026-01-01T00:00:00Z",
+  "to": "2026-01-31T00:00:00Z",
+  "limit": 1000
+}
+```
+
+```json
+{
+  "columns": [
+    { "name": "day", "type": "dimension" },
+    { "name": "agent", "type": "dimension" },
+    { "name": "total", "type": "metric" },
+    { "name": "cacheHitRatio", "type": "metric" }
+  ],
+  "rows": [{ "day": "2026-01-01", "agent": "pi", "total": 190, "cacheHitRatio": 0.25 }],
+  "unavailable": [],
+  "overlapping": false,
+  "truncated": false
+}
+```
+
+- **Metrics** (1–4, no duplicates): `input`, `output`, `cacheRead`, `cacheWrite`, `total` (raw token integers; the UI formats millions), `computedCost`, `reportedCost`, `cacheHitRatio`, `turns`, `sessions` (distinct). Costs are sums of known values only, `null` when none is known, never an inferred zero; each cost metric adds `<metric>Known` and `<metric>Unknown` coverage columns counting usage rows, exactly as in the Summary (computed cost is known only when priced with the current catalog). `cacheHitRatio` = cacheRead / (input + cacheRead + cacheWrite), `null` when that sum is 0. `turns` counts all turns, including user turns.
+- **Dimensions** (0–2, no duplicates): `agent`, `model`, `provider`, `effort`, `repo`, `branch`, `tool`, `day` (`YYYY-MM-DD`), `hourOfDay` (0–23), `dayOfWeek` (ISO, 1 = Monday … 7 = Sunday), all in UTC. `subscription`, `profile` and `role` are accepted, grouped as `null` and listed in `unavailable` until phase 3. `repo` groups the stored column, which no adapter fills yet; it is never derived from the working directory. Rows are ordered by dimension values ascending, nulls last; `truncated` is true when more than `limit` (1–10000, default 1000) groups exist.
+- **Tools.** Grouping by `tool` counts each turn once per distinct tool it called, so groups overlap and `overlapping` is `true`; turns without tools form the `null` group. A `tool` filter without tool grouping selects turns that did (`in`) or did not (`notIn`) call any listed tool, without duplicating them.
+- **Filters** (at most 10, combined with AND): `{ dimension, op: "in" | "notIn", values }` with 1–50 non-empty strings. Values are compared with the dimension's text form (`"23"` for `hourOfDay`) and always bound as parameters. `notIn` keeps `null` groups; unavailable dimensions behave as `null`.
+- **Range.** `from` and `to` are required and follow the Summary rules: ISO timestamps with timezone, millisecond precision at most, `from < to`, at most 366 UTC days, selecting turns by timestamp in `[from, to)`.
+- Unknown or extra fields, invalid values, malformed JSON and bodies above 64 KiB return 400 with exactly `{"error":"invalid explorer query"}` before any database access. Non-JSON content returns 415, hostile browser Origins 403, non-local Hosts 403. Unsafe aggregates or database failures return 500 with exactly `{"error":"explorer unavailable"}`.
+
+#### Saved views: `GET /api/views`, `PUT /api/views/:id`, `DELETE /api/views/:id`
+
+A saved view (`omt.saved-view/1`) stores the query without `from`/`to` plus a `range` (`last7Days`, `last30Days`, `last90Days`, `last365Days` or `{ "from", "to" }`), a `chart` (`type`: `bar`, `barStacked`, `barGrouped`, `line`, `area`, `heatmap`, `treemap`, `sankey`, `scatter`; `encoding` hints that name query fields) and the chart `spec`: Vega-Lite, or Vega for `treemap` and `sankey`. Specs never embed data or URLs: rows are injected at render time from the named `table` dataset.
+
+- Presets live in `data/views/*.json`, are read-only and use i18n keys for `name` and `description`. User views live in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/<id>.json`, next to the default database and independent of `--db`.
+- `GET /api/views` returns `{ views, invalid }`: presets then user views, each with `origin: "preset" | "user"`. Unreadable, invalid, symlinked or misnamed user files are listed in `invalid` as `{ id }` without breaking the list.
+- `PUT /api/views/:id` creates or replaces a user view and returns it. `id` matches `^[a-z0-9-]{1,64}$` and must equal the body `id`. The file is written atomically (temporary file, then rename) with mode 0600 in a 0700 directory, at most 256 KB. Invalid ids or bodies return 400 `{"error":"invalid view"}`, preset ids 403 `{"error":"preset views are read-only"}`, and a symlinked views directory or file 409 `{"error":"unsafe view storage"}`, with nothing written. Symlinks are never followed.
+- `DELETE /api/views/:id` removes a user view (204); a missing view returns 404, a preset 403. Writes are serialized, and share the Host guard, Origin check and JSON requirement of the other write endpoints.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
 - The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
 - Agent session files are only read, never modified.
+- Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`.
 
 ### Keep your Claude Code history
 

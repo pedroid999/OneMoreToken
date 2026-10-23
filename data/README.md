@@ -7,8 +7,11 @@ Prices, quota limits and design tokens are data, not code (spec §4, §8.2). Edi
 | `pricing.json` | Price per million tokens by model and provider, with `validFrom` / `validTo` dates | `PricingFileSchema` in `packages/core/src/data/files.ts` |
 | `subscriptions.json` | Plans, their quota windows and limits (`usd`, `tokens` or `estimated`) | `SubscriptionsFileSchema` in the same file |
 | `theme/` | Design tokens for the Kanagawa themes | see `theme/README.md` |
+| `views/` | Preset Explorer views: query, chart type and Vega-Lite (or Vega) spec, one file per view named `<id>.json` | `SavedViewSchema` in `packages/core/src/data/views.ts` |
 
 `pnpm check` validates every file against its schema.
+
+Preset views are versioned and read-only: `name` and `description` are i18n keys (`explorer.presets.<key>.name`), specs never embed data or URLs, and they contain no personal data. Views saved from the UI live outside the repository (see the README).
 
 ## Pricing policy (spec §4)
 
