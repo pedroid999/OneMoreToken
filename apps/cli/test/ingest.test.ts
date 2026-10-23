@@ -17,7 +17,9 @@ import { fileURLToPath } from "node:url";
 import { parsePi } from "@omt/adapters";
 import { type Database, migrate, openDatabase } from "@omt/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createOpenCodeFixture } from "../../../packages/adapters/opencode/fixtures/create";
 import { createApp } from "../src/app";
+import { defaultIngestRoots } from "../src/ingest/service";
 
 const now = "2026-01-10T00:00:00.000Z";
 const header = JSON.stringify({ type: "session", version: 3, id: "s", timestamp: now });
@@ -301,5 +303,104 @@ describe("POST /api/ingest", () => {
     expect(await second.json()).toEqual(metrics(2, 0, 2));
     expect(health.status).toBe(200);
     expect((await stored()).map((rows) => rows.length)).toEqual([2, 2, 2, 2, 0, 0, 2]);
+  });
+});
+
+describe("POST /api/ingest for OpenCode", () => {
+  const opencode = () =>
+    app({ ingest: { roots: [{ agent: "opencode", path: root }], now: () => now } });
+  async function fingerprint() {
+    const entries = await readdir(root, { recursive: true, withFileTypes: true });
+    return Promise.all(
+      entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => join(entry.parentPath, entry.name))
+        .sort()
+        .map(async (path) => [path, (await stat(path)).mtimeMs, await readFile(path, "hex")]),
+    );
+  }
+
+  it("ingests one source per session read-only, links children and skips unchanged sessions", async () => {
+    await createOpenCodeFixture(root);
+    const before = await fingerprint();
+    const first = await post(opencode());
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual(metrics(4, 4, 0, 0, 2));
+    expect(await fingerprint()).toEqual(before);
+    expect((await readdir(root)).filter((name) => name.endsWith("-shm"))).toEqual([]);
+    const snapshot = await stored();
+    expect(snapshot.map((rows) => rows.length)).toEqual([4, 4, 10, 5, 4, 2, 4]);
+    expect(
+      JSON.stringify(snapshot, (_key, value) =>
+        typeof value === "bigint" ? String(value) : value,
+      ),
+    ).not.toContain("PRIVATE_SENTINEL");
+    expect(await db.all("SELECT DISTINCT agent, adapter_version FROM sources")).toEqual([
+      { agent: "opencode", adapter_version: "opencode/1" },
+    ]);
+    expect(
+      await db.all(
+        `SELECT child.format_version, parent.format_version AS parent_format
+         FROM sessions child JOIN sessions parent ON child.parent_session_id = parent.id`,
+      ),
+    ).toEqual([
+      {
+        format_version: "opencode-sqlite/1.0.0-synthetic",
+        parent_format: "opencode-sqlite/1.0.0-synthetic",
+      },
+    ]);
+    expect(await db.all("SELECT format_version, cwd FROM sessions ORDER BY started_at")).toEqual([
+      { format_version: "opencode-legacy/0.5.0-synthetic", cwd: "/synthetic/legacy" },
+      { format_version: "opencode-sqlite/0.9.0-synthetic", cwd: "/synthetic/migrated" },
+      { format_version: "opencode-sqlite/1.0.0-synthetic", cwd: "/synthetic/project" },
+      { format_version: "opencode-sqlite/1.0.0-synthetic", cwd: "/synthetic/project" },
+    ]);
+    expect(await db.all("SELECT count(*) AS n FROM turns WHERE is_compaction")).toEqual([
+      { n: 1n },
+    ]);
+    const second = await post(opencode());
+    expect(await second.json()).toEqual(metrics(4, 0, 4));
+    expect(await stored()).toEqual(snapshot);
+  });
+
+  it("accepts --agent opencode --path and filters sessions by updated time with since", async () => {
+    await createOpenCodeFixture(root);
+    const application = app({ ingest: { roots: [], now: () => now } });
+    const response = await post(application, {
+      agent: "opencode",
+      path: root,
+      since: "2026-01-01T00:00:00Z",
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(metrics(2, 2, 0, 0, 1));
+    expect(await db.all("SELECT DISTINCT cwd FROM sessions")).toEqual([
+      { cwd: "/synthetic/project" },
+    ]);
+  });
+
+  it("counts an unreadable database as one failure and ignores an absent default root", async () => {
+    await writeFile(join(root, "opencode.db"), "PRIVATE_SENTINEL not sqlite");
+    expect(await (await post(opencode())).json()).toEqual(metrics(0, 0, 0, 1, 1));
+    const absent = app({
+      ingest: { roots: [{ agent: "opencode", path: join(root, "absent") }], now: () => now },
+    });
+    expect(await (await post(absent)).json()).toEqual(metrics(0));
+  });
+
+  it("discovers OpenCode under XDG_DATA_HOME, else ~/.local/share", () => {
+    const find = (roots: ReturnType<typeof defaultIngestRoots>) =>
+      roots.find((root) => root.agent === "opencode")?.path;
+    expect(find(defaultIngestRoots("/synthetic/home", {}))).toBe(
+      "/synthetic/home/.local/share/opencode",
+    );
+    expect(find(defaultIngestRoots("/synthetic/home", { XDG_DATA_HOME: "/synthetic/data" }))).toBe(
+      "/synthetic/data/opencode",
+    );
+    expect(defaultIngestRoots("/synthetic/home", {}).map(({ agent }) => agent)).toEqual([
+      "claude-code",
+      "gentle-shell",
+      "pi",
+      "opencode",
+    ]);
   });
 });

@@ -1,0 +1,8 @@
+{
+  "id": "ses_legacy_only",
+  "projectID": "prj_synthetic",
+  "directory": "/synthetic/legacy",
+  "title": "PRIVATE_SENTINEL legacy title",
+  "version": "0.5.0-synthetic",
+  "time": { "created": 1759276800000, "updated": 1759277100000 }
+}

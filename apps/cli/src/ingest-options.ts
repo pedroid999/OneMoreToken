@@ -3,11 +3,12 @@ import { parseArgs } from "node:util";
 import { TurnSchema } from "@omt/core";
 import type { ParseResult } from "./options";
 
-export type IngestAgent = "claude-code" | "gentle-shell" | "pi";
+export type IngestAgent = "claude-code" | "gentle-shell" | "pi" | "opencode";
 export interface IngestOptions {
   agent?: IngestAgent;
   path?: string;
-  /** File mtime discovery filter, not a turn timestamp filter or deletion instruction. */
+  /** File mtime (OpenCode: session updated time) discovery filter, not a turn timestamp
+   * filter or deletion instruction. */
   since?: string;
 }
 export const DEFAULT_API_URL = "http://127.0.0.1:7317";
@@ -22,7 +23,7 @@ export function validateIngestOptions(input: unknown): IngestOptions | null {
   if ("agent" in value) {
     if (
       typeof value.agent !== "string" ||
-      !["claude-code", "gentle-shell", "pi"].includes(value.agent)
+      !["claude-code", "gentle-shell", "pi", "opencode"].includes(value.agent)
     )
       return null;
     options.agent = value.agent as IngestAgent;

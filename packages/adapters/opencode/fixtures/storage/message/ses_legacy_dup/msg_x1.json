@@ -1,0 +1,10 @@
+{
+  "id": "msg_x1",
+  "sessionID": "ses_legacy_dup",
+  "role": "assistant",
+  "time": { "created": 1764547200000 },
+  "modelID": "model-a",
+  "providerID": "synthetic",
+  "cost": 99,
+  "tokens": { "input": 9999, "output": 9999, "reasoning": 0, "cache": { "read": 0, "write": 0 } }
+}

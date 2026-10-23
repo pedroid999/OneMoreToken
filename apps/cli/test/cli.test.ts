@@ -87,6 +87,8 @@ describe("omt ingest client", () => {
     ).toBe(0);
     expect(c.out()).toContain("--since <timestamp>");
     expect(c.out()).toContain("--url <url>");
+    expect(c.out()).toContain("claude-code, gentle-shell, pi or opencode");
+    expect(c.out()).toContain("~/.local/share}/opencode/");
     expect(c.err()).toBe("");
   });
 
@@ -134,6 +136,21 @@ describe("omt ingest client", () => {
         },
       },
     ]);
+  });
+
+  it("accepts the opencode agent with an explicit data directory", async () => {
+    const c = capture();
+    const bodies: unknown[] = [];
+    expect(
+      await run(["ingest", "--agent", "opencode", "--path", "/synthetic/opencode"], c.io, {
+        fetch: async (_url, init) => {
+          bodies.push(init?.body);
+          return Response.json({ files: 0, persisted: 0, skipped: 0, failed: 0, issues: 0 });
+        },
+      }),
+    ).toBe(0);
+    expect(bodies).toEqual([JSON.stringify({ agent: "opencode", path: "/synthetic/opencode" })]);
+    expect(c.err()).toBe("");
   });
 
   it("uses the default URL and lets the server discover roots", async () => {
