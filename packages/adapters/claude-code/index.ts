@@ -12,7 +12,7 @@ import {
   UsageSchema,
 } from "@omt/core";
 
-export const CLAUDE_CODE_ADAPTER_VERSION = "claude-code-jsonl-v1";
+export const CLAUDE_CODE_ADAPTER_VERSION = "claude-code-jsonl-v2";
 
 type ObjectRow = Record<string, unknown>;
 const object = (value: unknown): ObjectRow => {
@@ -36,6 +36,8 @@ type Result = { ts: string; error: boolean };
 /** Pure metrics-only snapshot parser (spec §3, §4, §10).
  * `anthropic` identifies Claude API usage, never a subscription or account.
  * cost-state is cumulative, so it cannot supply per-turn reported cost.
+ * A `compact_boundary` system row becomes a usage-free compaction turn; its content and
+ * compactMetadata are never read. The following `isCompactSummary` row stays a user turn.
  */
 export const parseClaudeCode: SourceParser = (content, context) => {
   const source = createSource(context);
@@ -72,9 +74,10 @@ export const parseClaudeCode: SourceParser = (content, context) => {
     try {
       const event = object(decoded);
       const type = text(event.type);
-      if (type !== "assistant" && type !== "user") continue;
+      const compaction = type === "system" && event.subtype === "compact_boundary";
+      if (type !== "assistant" && type !== "user" && !compaction) continue;
       const nativeSession = text(event.sessionId);
-      const message = object(event.message);
+      const message = compaction ? {} : object(event.message);
       const nativeTurn = text(
         type === "assistant" ? (message.id ?? event.uuid) : (event.uuid ?? message.id),
       );
@@ -84,13 +87,13 @@ export const parseClaudeCode: SourceParser = (content, context) => {
         id: turnId,
         session_id: sessionId,
         idx: 0,
-        role: type,
+        role: compaction ? "compaction" : type,
         ts: event.timestamp,
         model: type === "assistant" ? optionalText(message.model ?? event.requestedModel) : null,
         provider: type === "assistant" ? "anthropic" : null,
-        effort: optionalText(event.perTurnEffort ?? event.effort),
+        effort: compaction ? null : optionalText(event.perTurnEffort ?? event.effort),
         subscription_id: null,
-        is_compaction: false,
+        is_compaction: compaction,
       });
       const session = SessionSchema.parse({
         id: sessionId,

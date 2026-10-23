@@ -14,7 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parsePi } from "@omt/adapters";
+import { PI_ADAPTER_VERSION, parsePi } from "@omt/adapters";
 import { type Database, migrate, openDatabase } from "@omt/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createOpenCodeFixture } from "../../../packages/adapters/opencode/fixtures/create";
@@ -93,7 +93,7 @@ describe("POST /api/ingest", () => {
     expect(await res.json()).toEqual(metrics(1));
     const snapshot = await stored();
     expect(snapshot.map((rows) => rows.length)).toEqual([1, 1, 1, 1, 0, 0, 1]);
-    expect(snapshot[0]?.[0]).toMatchObject({ agent: "pi", adapter_version: "pi-v3/1" });
+    expect(snapshot[0]?.[0]).toMatchObject({ agent: "pi", adapter_version: PI_ADAPTER_VERSION });
     expect(snapshot[3]?.[0]).toMatchObject({ input_tokens: 10n, output_tokens: 2n });
     expect(
       JSON.stringify(snapshot, (_key, value) =>
@@ -205,7 +205,8 @@ describe("POST /api/ingest", () => {
         failed: 0,
       });
       expect(await db.all("SELECT agent FROM sources")).toEqual([{ agent }]);
-      expect((await db.all("SELECT * FROM usage")).length).toBe(2);
+      // Pi fixtures add a compaction summary and two usage entries; a Claude compaction has no usage.
+      expect((await db.all("SELECT * FROM usage")).length).toBe(agent === "claude-code" ? 2 : 5);
     },
   );
 

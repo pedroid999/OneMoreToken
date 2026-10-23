@@ -11,7 +11,7 @@ import {
   UsageSchema,
 } from "@omt/core";
 
-export const PI_ADAPTER_VERSION = "pi-v3/1";
+export const PI_ADAPTER_VERSION = "pi-v3/2";
 type ObjectRecord = Record<string, unknown>;
 const object = (value: unknown): ObjectRecord =>
   value !== null && typeof value === "object" && !Array.isArray(value)
@@ -30,10 +30,13 @@ const tokenSchema = UsageSchema.pick({
 });
 type Event = { data: ObjectRecord; id: string; parent: string | null; line: number };
 type State = { model: string | null; provider: string | null; effort: string | null };
+const USAGE_TYPES = ["message", "compaction", "usage"];
 
 /** Pure Pi v3 metrics (spec §3, §4, §10). All uniquely recorded API calls count,
  * including abandoned branches: they cost tokens. No active branch is inferred.
  * Fixtures reconstruct verified shapes; branch fixtures assert tree semantics only.
+ * `compaction` entries are compaction turns with inherited state and optional summary usage;
+ * `usage` entries count whatever their `kind`. Summaries, details and system messages are never read.
  */
 export const parsePi: SourceParser = (content, context) => {
   const source = createSource(context);
@@ -103,7 +106,7 @@ export const parsePi: SourceParser = (content, context) => {
       continue;
     }
     if (events.has(eventId)) {
-      issue(data.type === "message" ? "duplicate_usage" : "invalid_record", line);
+      issue(USAGE_TYPES.includes(String(data.type)) ? "duplicate_usage" : "invalid_record", line);
       continue;
     }
     if (!iso(data.timestamp)) issue("missing_timestamp", line);
@@ -153,11 +156,12 @@ export const parsePi: SourceParser = (content, context) => {
   const turns = new Map<string, NormalizedBatch["turns"][number]>();
   for (const event of events.values()) {
     const { data, line } = event;
-    if (data.type !== "message") continue;
+    if (!USAGE_TYPES.includes(String(data.type))) continue;
     const message = object(data.message);
     if (
-      typeof message.role !== "string" ||
-      !["user", "assistant", "toolResult"].includes(message.role)
+      data.type === "message" &&
+      (typeof message.role !== "string" ||
+        !["user", "assistant", "toolResult"].includes(message.role))
     ) {
       issue("invalid_record", line);
       continue;
@@ -167,21 +171,26 @@ export const parsePi: SourceParser = (content, context) => {
       issue("missing_timestamp", line);
       continue;
     }
-    const state = stateFor(event);
+    // Usage entries carry their own attribution and never change the inherited state.
+    const state =
+      data.type === "usage"
+        ? { model: text(data.model), provider: text(data.provider), effort: null }
+        : stateFor(event);
     const turn = {
       id: id("turn", event.id),
       session_id: sessionId,
       idx: batch.turns.length,
-      role: String(message.role),
+      role: String(data.type === "message" ? message.role : data.type),
       ts,
       ...state,
       subscription_id: null,
-      is_compaction: false,
+      is_compaction: data.type === "compaction",
     };
     batch.turns.push(turn);
     turns.set(event.id, turn);
-    if (message.role !== "assistant") continue;
-    const raw = object(message.usage);
+    if (data.type === "message" && message.role !== "assistant") continue;
+    if (data.type === "compaction" && data.usage === undefined) continue;
+    const raw = object(data.type === "message" ? message.usage : data.usage);
     const metrics = tokenSchema.safeParse({
       input_tokens: raw.input,
       output_tokens: raw.output,

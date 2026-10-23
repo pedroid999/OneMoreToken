@@ -12,7 +12,7 @@ import { CLAUDE_CODE_ADAPTER_VERSION, parseClaudeCode } from "./index";
 const context: ParseContext = {
   agent: "claude-code",
   path: "/synthetic/session.jsonl",
-  adapterVersion: "claude-code-jsonl-v1",
+  adapterVersion: CLAUDE_CODE_ADAPTER_VERSION,
   ingestedAt: "2026-10-17T00:00:00.000Z",
   pricing: {
     version: 1,
@@ -45,7 +45,7 @@ const jsonl = (...rows: unknown[]) => `${rows.map((value) => JSON.stringify(valu
 
 describe("Claude Code metrics-only JSONL", () => {
   it("snapshots reconstructed observed shapes without charging repeated blocks or cost-state", () => {
-    expect(CLAUDE_CODE_ADAPTER_VERSION).toBe(context.adapterVersion);
+    expect(CLAUDE_CODE_ADAPTER_VERSION).toBe("claude-code-jsonl-v2");
     const batch = parseClaudeCode(fixture, context);
     expect(NormalizedBatchSchema.parse(batch)).toEqual(batch);
     expect(batch).toMatchSnapshot();
@@ -59,6 +59,13 @@ describe("Claude Code metrics-only JSONL", () => {
       computed_cost_usd: 0.000364,
     });
     expect(batch.usage[1]).toMatchObject({ computed_cost_usd: null, cache_write_tokens: 5 });
+    expect(batch.turns.map(({ role, is_compaction }) => [role, is_compaction])).toEqual([
+      ["user", false],
+      ["assistant", false],
+      ["assistant", false],
+      ["compaction", true],
+      ["user", false],
+    ]);
     expect(
       batch.toolCalls.map(({ tool, status, duration_ms }) => ({ tool, status, duration_ms })),
     ).toEqual([
@@ -95,6 +102,8 @@ describe("Claude Code metrics-only JSONL", () => {
         usage: { input_tokens: 1, output_tokens: 2 },
       },
     },
+    { type: "system", subtype: "compact_boundary", uuid: "c", timestamp: "bad" },
+    { type: "system", subtype: "compact_boundary", uuid: undefined, message: undefined },
   ])("isolates invalid row %j and retains valid preceding/following metrics", (bad) => {
     const valid = [
       row(),
@@ -231,6 +240,62 @@ describe("Claude Code metrics-only JSONL", () => {
       createIssue(broken.source, "invalid_json", "1", context.ingestedAt),
     ]);
     expect(parseClaudeCode(content, context).usage).toHaveLength(1);
+  });
+
+  it("marks compact boundaries as usage-free compaction turns and keeps summaries as user turns", () => {
+    const boundary = {
+      type: "system",
+      subtype: "compact_boundary",
+      uuid: "c",
+      parentUuid: null,
+      logicalParentUuid: "a",
+      sessionId: "s",
+      timestamp: "2026-10-16T10:00:02.000Z",
+      cwd: "/synthetic/project",
+      gitBranch: "main",
+      content: "SYNTHETIC_PRIVATE_BOUNDARY",
+      level: "info",
+      isMeta: false,
+      compactMetadata: { trigger: "SYNTHETIC_PRIVATE_TRIGGER", preTokens: 4321 },
+    };
+    const summary = {
+      type: "user",
+      uuid: "u-summary",
+      parentUuid: "c",
+      sessionId: "s",
+      timestamp: "2026-10-16T10:00:03.000Z",
+      isCompactSummary: true,
+      isVisibleInTranscriptOnly: true,
+      message: { role: "user", content: "SYNTHETIC_PRIVATE_SUMMARY" },
+    };
+    const batch = parseClaudeCode(jsonl(row(), boundary, summary, boundary), context);
+    const sessionId = recordId(batch.source.id, "session", "s");
+    expect(batch.issues).toEqual([]);
+    expect(batch.turns).toHaveLength(3);
+    expect(batch.turns[1]).toEqual({
+      id: recordId(batch.source.id, "turn", JSON.stringify(["s", "c"])),
+      session_id: sessionId,
+      idx: 1,
+      role: "compaction",
+      ts: boundary.timestamp,
+      model: null,
+      provider: null,
+      effort: null,
+      subscription_id: null,
+      is_compaction: true,
+    });
+    const plain = parseClaudeCode(
+      jsonl(row(), boundary, { ...summary, isCompactSummary: undefined }),
+      context,
+    );
+    expect(batch.turns[2]).toEqual(plain.turns[2]);
+    expect(batch.turns[2]).toMatchObject({ role: "user", is_compaction: false, idx: 2 });
+    expect(batch.usage).toEqual(parseClaudeCode(jsonl(row()), context).usage);
+    expect(batch.toolCalls).toEqual([]);
+    expect(batch.sessions).toEqual([
+      expect.objectContaining({ id: sessionId, ended_at: summary.timestamp }),
+    ]);
+    expect(JSON.stringify(batch)).not.toMatch(/SYNTHETIC_PRIVATE|4321|preTokens|trigger/);
   });
 
   it("does not invent missing usage, successful results, or ordered tool duration", () => {
