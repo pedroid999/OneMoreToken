@@ -1,5 +1,61 @@
 {
   "version": 1,
   "currency": "USD",
-  "entries": []
+  "basis": "current-reference",
+  "observedAt": "2026-10-21",
+  "entries": [
+    {
+      "model": "claude-opus-5-5",
+      "provider": "anthropic",
+      "validFrom": "2026-10-21",
+      "validTo": null,
+      "inputPerMTok": 4,
+      "outputPerMTok": 20,
+      "cacheReadPerMTok": 0.2,
+      "cacheWritePerMTok": 5,
+      "cacheWriteLongPerMTok": 8,
+      "sources": [
+        "https://platform.claude.com/docs/en/models/opus-5-5/overview",
+        "https://platform.claude.com/docs/en/about-claude/pricing"
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "provider": "claude-bridge",
+      "validFrom": "2026-10-21",
+      "validTo": null,
+      "inputPerMTok": 4,
+      "outputPerMTok": 20,
+      "cacheReadPerMTok": 0.2,
+      "cacheWritePerMTok": 5,
+      "cacheWriteLongPerMTok": 8,
+      "sources": [
+        "https://platform.claude.com/docs/en/models/opus-5-5/overview",
+        "https://platform.claude.com/docs/en/about-claude/pricing"
+      ]
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "provider": "openai-codex",
+      "validFrom": "2026-10-21",
+      "validTo": null,
+      "inputPerMTok": 2,
+      "outputPerMTok": 10,
+      "cacheReadPerMTok": 0.1,
+      "cacheWritePerMTok": 2.5,
+      "cacheWriteLongPerMTok": 5,
+      "sources": [
+        "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+        "https://developers.openai.com/api/docs/pricing"
+      ],
+      "longContext": {
+        "inputTokenThreshold": 272000,
+        "inputPerMTok": 4,
+        "outputPerMTok": 15,
+        "cacheReadPerMTok": 0.2,
+        "cacheWritePerMTok": 5,
+        "cacheWriteLongPerMTok": 10
+      }
+    }
+  ]
 }

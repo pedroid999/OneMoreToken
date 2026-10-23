@@ -1,0 +1,110 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Claude Code metrics-only JSONL > snapshots reconstructed observed shapes without charging repeated blocks or cost-state 1`] = `
+{
+  "issues": [
+    {
+      "code": "invalid_json",
+      "created_at": "2026-10-17T00:00:00.000Z",
+      "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:issue:29d5133c33d41cd500e69afec69dc6273364b9aaa7b15931e006f025fadeca36",
+      "location": "9",
+      "message": "Invalid JSON record",
+      "path": "/synthetic/session.jsonl",
+      "severity": "warning",
+      "source_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080",
+    },
+  ],
+  "sessions": [
+    {
+      "agent": "claude-code",
+      "branch": "main",
+      "cwd": "/synthetic/project",
+      "ended_at": "2026-10-16T10:00:04.000Z",
+      "format_version": "claude-code-jsonl-v1",
+      "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:session:e8bc163c82eee18733288c7d4ac636db3a6deb013ef2d37b68322be20edc45cc",
+      "repo": null,
+      "source_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080",
+      "started_at": "2026-10-16T10:00:00.000Z",
+      "title": null,
+    },
+  ],
+  "source": {
+    "adapter_version": "claude-code-jsonl-v1",
+    "agent": "claude-code",
+    "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080",
+    "last_ingested_at": "2026-10-17T00:00:00.000Z",
+    "path": "/synthetic/session.jsonl",
+  },
+  "toolCalls": [
+    {
+      "duration_ms": 2000,
+      "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:tool:26062a0bea2abee2373a250f9f2a15d1f4730f8be4264ebbd32eff95a9e75327",
+      "status": "ok",
+      "tool": "Read",
+      "turn_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:turn:ecdeba28a684804fa3540f6e75e25d732aa105f06bfd5a9bee75851d597eb359",
+    },
+    {
+      "duration_ms": 2000,
+      "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:tool:575aa18ee9f39c117dbbb71c3f00a81d43584c4417fea70c7a1cec5a7c45220a",
+      "status": "error",
+      "tool": "Bash",
+      "turn_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:turn:ecdeba28a684804fa3540f6e75e25d732aa105f06bfd5a9bee75851d597eb359",
+    },
+  ],
+  "turns": [
+    {
+      "effort": null,
+      "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:turn:47de0509afc002d8ced25158194103dd56669d4270fe0a870a08391613081997",
+      "idx": 0,
+      "model": null,
+      "provider": null,
+      "role": "user",
+      "session_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:session:e8bc163c82eee18733288c7d4ac636db3a6deb013ef2d37b68322be20edc45cc",
+      "subscription_id": null,
+      "ts": "2026-10-16T10:00:00.000Z",
+    },
+    {
+      "effort": "high",
+      "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:turn:ecdeba28a684804fa3540f6e75e25d732aa105f06bfd5a9bee75851d597eb359",
+      "idx": 1,
+      "model": "fixture-model",
+      "provider": "anthropic",
+      "role": "assistant",
+      "session_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:session:e8bc163c82eee18733288c7d4ac636db3a6deb013ef2d37b68322be20edc45cc",
+      "subscription_id": null,
+      "ts": "2026-10-16T10:00:01.000Z",
+    },
+    {
+      "effort": "low",
+      "id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:turn:dec8ea8f88355611eaee59ec5a2def6da0f717d191251ed0700f505b1bd5b322",
+      "idx": 2,
+      "model": "unknown-model",
+      "provider": "anthropic",
+      "role": "assistant",
+      "session_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:session:e8bc163c82eee18733288c7d4ac636db3a6deb013ef2d37b68322be20edc45cc",
+      "subscription_id": null,
+      "ts": "2026-10-16T10:00:04.000Z",
+    },
+  ],
+  "usage": [
+    {
+      "cache_read_tokens": 40,
+      "cache_write_tokens": 30,
+      "computed_cost_usd": 0.000364,
+      "input_tokens": 100,
+      "output_tokens": 12,
+      "reported_cost_usd": null,
+      "turn_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:turn:ecdeba28a684804fa3540f6e75e25d732aa105f06bfd5a9bee75851d597eb359",
+    },
+    {
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 5,
+      "computed_cost_usd": null,
+      "input_tokens": 1,
+      "output_tokens": 1,
+      "reported_cost_usd": null,
+      "turn_id": "09ad32dabb5867025be809958b5b5307888e9a9dadd627ec4263420d781ac080:turn:dec8ea8f88355611eaee59ec5a2def6da0f717d191251ed0700f505b1bd5b322",
+    },
+  ],
+}
+`;

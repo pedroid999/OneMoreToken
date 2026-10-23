@@ -1,3 +1,4 @@
-// Adapters land in phase 1 (spec §3). Each one reads an agent's local storage read-only
-// and emits rows that validate against the normalized schema in @omt/core.
-export {};
+export { CLAUDE_CODE_ADAPTER_VERSION, parseClaudeCode } from "../claude-code/index";
+export { GENTLE_SHELL_ADAPTER_VERSION, parseGentleShell } from "../gentle-shell/index";
+export { PI_ADAPTER_VERSION, parsePi } from "../pi/index";
+export type { IssueCode, NormalizedBatch, ParseContext, SourceParser } from "./types";

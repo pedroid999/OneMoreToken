@@ -64,13 +64,154 @@ describe("omt help", () => {
   });
 });
 
-describe("omt ingest / watch", () => {
-  it.each(["ingest", "watch"])("%s is not available in phase 0 and exits 2", async (command) => {
+describe("omt watch", () => {
+  it.each(["watch"])("%s remains a stub and exits 2", async (command) => {
     const c = capture();
     expect(await run([command], c.io)).toBe(2);
     expect(c.out()).toBe("");
     expect(c.err()).toBe(
       `omt ${command}: not implemented yet; it arrives in phase 1 (see docs/spec.md §12).\n`,
+    );
+  });
+});
+
+describe("omt ingest client", () => {
+  it("prints help without making requests", async () => {
+    const c = capture();
+    expect(
+      await run(["ingest", "--help"], c.io, {
+        fetch: async () => {
+          throw new Error("must not fetch");
+        },
+      }),
+    ).toBe(0);
+    expect(c.out()).toContain("--since <timestamp>");
+    expect(c.out()).toContain("--url <url>");
+    expect(c.err()).toBe("");
+  });
+
+  it("posts options to the loopback server and prints only fixed counters", async () => {
+    const c = capture();
+    const requests: { url: string; init: RequestInit | undefined }[] = [];
+    const code = await run(
+      [
+        "ingest",
+        "--url",
+        "http://localhost:7318",
+        "--agent",
+        "pi",
+        "--path",
+        "/synthetic",
+        "--since",
+        "2026-01-01T00:00:00Z",
+      ],
+      c.io,
+      {
+        fetch: async (url, init) => {
+          requests.push({ url: String(url), init });
+          return Response.json({
+            files: 3,
+            persisted: 1,
+            skipped: 1,
+            failed: 1,
+            issues: 2,
+            private: "SECRET",
+          });
+        },
+      },
+    );
+    expect(code).toBe(0);
+    expect(c.out()).toBe("omt ingest: files=3 persisted=1 skipped=1 failed=1 issues=2\n");
+    expect(c.err()).toBe("");
+    expect(requests).toEqual([
+      {
+        url: "http://localhost:7318/api/ingest",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          redirect: "error",
+          body: JSON.stringify({ agent: "pi", path: "/synthetic", since: "2026-01-01T00:00:00Z" }),
+        },
+      },
+    ]);
+  });
+
+  it("uses the default URL and lets the server discover roots", async () => {
+    const c = capture();
+    expect(
+      await run(["ingest"], c.io, {
+        fetch: async (url, init) => {
+          expect(String(url)).toBe("http://127.0.0.1:7317/api/ingest");
+          expect(init?.body).toBe("{}");
+          return Response.json({ files: 0, persisted: 0, skipped: 0, failed: 0, issues: 0 });
+        },
+      }),
+    ).toBe(0);
+    expect(c.out()).toBe("omt ingest: files=0 persisted=0 skipped=0 failed=0 issues=0\n");
+    expect(c.err()).toBe("");
+  });
+
+  it.each([
+    ["--path", "/synthetic"],
+    ["--agent", "other"],
+    ["--agent", "pi", "--path", "relative"],
+    ["--since", "bad"],
+    ["--since", "2026-02-30T00:00:00Z"],
+    ["--nope"],
+    ["extra"],
+    ["--agent"],
+    ...[
+      "http://evil.example",
+      "https://localhost",
+      "http://localhost.evil",
+      "http://user:pass@localhost",
+      "http://localhost/?secret=x",
+      "http://localhost/other",
+      "http://127.0.0.1#secret",
+    ].map((url) => ["--url", url]),
+  ])("rejects invalid input %j without sending local paths", async (...args) => {
+    const c = capture();
+    let calls = 0;
+    expect(
+      await run(["ingest", ...args], c.io, {
+        fetch: async () => {
+          calls++;
+          throw new Error("must not fetch");
+        },
+      }),
+    ).toBe(1);
+    expect(calls).toBe(0);
+    expect(c.out()).toBe("");
+    expect(c.err()).toBe(`omt ingest: invalid ingest options\n${HELP_HINT}`);
+  });
+
+  it.each(["network", "api", "json", "metrics"])("sanitizes %s failures", async (failure) => {
+    const c = capture();
+    expect(
+      await run(["ingest"], c.io, {
+        fetch: async () => {
+          if (failure === "network") throw new Error("PRIVATE_SENTINEL /private/path");
+          if (failure === "api")
+            return Response.json({ error: "PRIVATE_SENTINEL" }, { status: 500 });
+          if (failure === "json") return new Response("PRIVATE_SENTINEL");
+          return Response.json({ files: -1, persisted: "PRIVATE_SENTINEL" });
+        },
+      }),
+    ).toBe(1);
+    expect(c.out()).toBe("");
+    expect(c.err()).toBe("omt ingest: request failed; check that omt serve is running.\n");
+  });
+
+  it.each(["watch", "serve"])("does not add ingest options to %s", async (command) => {
+    const c = capture();
+    expect(await run([command, "--since", "2026-01-01T00:00:00Z"], c.io)).toBe(
+      command === "watch" ? 2 : 1,
+    );
+    expect(c.out()).toBe("");
+    expect(c.err()).toBe(
+      command === "watch"
+        ? "omt watch: not implemented yet; it arrives in phase 1 (see docs/spec.md §12).\n"
+        : `omt serve: unknown option "--since"\n${HELP_HINT}`,
     );
   });
 });
@@ -136,7 +277,7 @@ describe("omt serve", () => {
     });
 
     expect(code).toBe(0);
-    expect(health).toEqual({ status: "ok", schemaVersion: 1 });
+    expect(health).toEqual({ status: "ok", schemaVersion: 3 });
     expect(existsSync(dbPath)).toBe(true);
     expect(c.err()).toBe("");
     expect(c.out()).toMatch(

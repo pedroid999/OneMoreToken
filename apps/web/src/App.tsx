@@ -28,7 +28,7 @@ export function App({ i18n, env }: AppProps) {
 const VIEW_ROUTES = ROUTES.filter((r) => r.id !== "settings" && r.id !== "about");
 const META_ROUTES = ROUTES.filter((r) => r.id === "settings" || r.id === "about");
 /** Query parameters that are not filters. */
-const NON_FILTER_PARAMS = new Set(["range"]);
+const NON_FILTER_PARAMS = new Set(["range", "from", "to"]);
 
 function Shell({ root }: { root: HTMLElement }) {
   const { t, i18n } = useTranslation();
@@ -50,6 +50,18 @@ function Shell({ root }: { root: HTMLElement }) {
     document.title = `${t(route.labelKey)} · ${t("app.name")}`;
   }, [t, route.labelKey]);
 
+  const periodParams = new URLSearchParams(search);
+  const periodDays =
+    (Date.parse(periodParams.get("to") ?? "") - Date.parse(periodParams.get("from") ?? "")) /
+    86_400_000;
+  const rangeLabel =
+    periodDays === 30
+      ? t("summary.last30Days")
+      : periodParams.has("from") || periodParams.has("to")
+        ? periodDays === 7
+          ? t("summary.last7Days")
+          : t("summary.customPeriod")
+        : t("status.rangeLast7Days");
   const filterCount = new Set(
     [...new URLSearchParams(search).keys()].filter((key) => !NON_FILTER_PARAMS.has(key)),
   ).size;
@@ -84,7 +96,7 @@ function Shell({ root }: { root: HTMLElement }) {
       <StatusBar
         segments={[
           { id: "view", content: t(route.labelKey) },
-          { id: "range", content: t("status.range", { range: t("status.rangeLast7Days") }) },
+          { id: "range", content: t("status.range", { range: rangeLabel }) },
           { id: "filters", content: t("status.filters", { count: filterCount }) },
           { id: "ingest", content: t("status.ingestIdle") },
           {
