@@ -1,7 +1,7 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { openDatabase } from "../src/db/database";
 import { listMigrations, migrate } from "../src/db/migrate";
 import { TABLE_SCHEMAS } from "../src/schema/tables";
@@ -23,6 +23,16 @@ const SPEC_TABLES = [
   "ingest_issues",
 ];
 
+const scratch: string[] = [];
+function temp(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  scratch.push(dir);
+  return dir;
+}
+afterEach(() => {
+  for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
 async function tableNames(db: Awaited<ReturnType<typeof openDatabase>>): Promise<string[]> {
   const rows = await db.all<{ table_name: string }>(
     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name",
@@ -31,12 +41,14 @@ async function tableNames(db: Awaited<ReturnType<typeof openDatabase>>): Promise
 }
 
 describe("migrate", () => {
-  it("creates every spec §4 table plus the migration ledger", async () => {
+  it("creates every spec §4 table plus the migration and checkpoint ledgers", async () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1]);
-    expect(await tableNames(db)).toEqual([...SPEC_TABLES, "schema_migrations"].sort());
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3]);
+    expect(await tableNames(db)).toEqual(
+      [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
+    );
     db.close();
   });
 
@@ -46,13 +58,50 @@ describe("migrate", () => {
     const second = await migrate(db);
 
     expect(second.applied).toEqual([]);
-    const ledger = await db.all<{ version: number }>("SELECT version FROM schema_migrations");
-    expect(ledger.map((r) => Number(r.version))).toEqual([1]);
+    const ledger = await db.all<{ version: number }>(
+      "SELECT version FROM schema_migrations ORDER BY version",
+    );
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3]);
+    db.close();
+  });
+
+  it("upgrades version 1 without changing its existing rows or tables", async () => {
+    const dir = temp("omt-upgrade-");
+    const initial = listMigrations()[0];
+    if (!initial) throw new Error("Expected the initial migration");
+    writeFileSync(join(dir, initial.name), readFileSync(initial.path, "utf8"));
+    const db = await openDatabase(":memory:");
+    await migrate(db, dir);
+    expect(await tableNames(db)).toEqual([...SPEC_TABLES, "schema_migrations"].sort());
+    await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
+    const before = await db.all("SELECT * FROM sources");
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3]);
+    expect(await db.all("SELECT * FROM sources")).toEqual(before);
+    expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
+    db.close();
+  });
+
+  it("upgrades version 2 preserving checkpoint and usage values with a null pricing hash", async () => {
+    const dir = temp("omt-pricing-upgrade-");
+    for (const migration of listMigrations().filter((entry) => entry.version <= 2)) {
+      writeFileSync(join(dir, migration.name), readFileSync(migration.path, "utf8"));
+    }
+    const db = await openDatabase(":memory:");
+    await migrate(db, dir);
+    await db.run("INSERT INTO ingest_checkpoints VALUES ('old', 'hash', 'v1', '2026-01-01')");
+    await db.run("INSERT INTO usage VALUES ('turn', 1, 2, 3, 4, 0, 5)");
+    const usage = await db.all("SELECT * FROM usage");
+    const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3]);
+    expect(await db.all("SELECT * FROM usage")).toEqual(usage);
+    expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
+      checkpoints.map((row) => ({ ...row, pricing_hash: null })),
+    );
     db.close();
   });
 
   it("persists to a file database across reopen", async () => {
-    const path = join(mkdtempSync(join(tmpdir(), "omt-")), "omt.duckdb");
+    const path = join(temp("omt-"), "omt.duckdb");
     const first = await openDatabase(path);
     await migrate(first);
     first.close();
@@ -64,7 +113,7 @@ describe("migrate", () => {
   });
 
   it("rolls back a failing migration and records nothing for it", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "omt-mig-"));
+    const dir = temp("omt-mig-");
     writeFileSync(join(dir, "001_ok.sql"), "CREATE TABLE ok_table (id INTEGER);");
     writeFileSync(join(dir, "002_broken.sql"), "CREATE TABLE half (id INTEGER); THIS IS NOT SQL;");
     const db = await openDatabase(":memory:");
@@ -77,13 +126,13 @@ describe("migrate", () => {
   });
 
   it("rejects migration files without a numbered prefix", () => {
-    const dir = mkdtempSync(join(tmpdir(), "omt-mig-"));
+    const dir = temp("omt-mig-");
     writeFileSync(join(dir, "initial.sql"), "SELECT 1;");
     expect(() => listMigrations(dir)).toThrow(/initial\.sql/);
   });
 
   it("rejects duplicated migration numbers", () => {
-    const dir = mkdtempSync(join(tmpdir(), "omt-mig-"));
+    const dir = temp("omt-mig-");
     writeFileSync(join(dir, "001_a.sql"), "SELECT 1;");
     writeFileSync(join(dir, "001_b.sql"), "SELECT 1;");
     expect(() => listMigrations(dir)).toThrow(/duplicate migration version 1/i);
@@ -110,7 +159,7 @@ describe("table schemas", () => {
 
 describe("migrate error reporting", () => {
   it("keeps the original migration error when ROLLBACK fails too", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "omt-mig-"));
+    const dir = temp("omt-mig-");
     writeFileSync(join(dir, "001_broken.sql"), "BROKEN;");
     const original = new Error("syntax error at BROKEN");
     const fake = {

@@ -9,26 +9,56 @@ export const DATA_DIR = fileURLToPath(new URL("../../../../data", import.meta.ur
 const date = z.iso.date();
 const price = z.number().nonnegative();
 
+const PriceRatesSchema = z.object({
+  inputPerMTok: price,
+  outputPerMTok: price,
+  cacheReadPerMTok: price,
+  cacheWritePerMTok: price,
+  cacheWriteLongPerMTok: price.optional(),
+});
 const PricingEntrySchema = z.object({
   model: z.string().min(1),
   provider: z.string().min(1),
   validFrom: date,
   validTo: date.nullable(),
-  inputPerMTok: price,
-  outputPerMTok: price,
-  cacheReadPerMTok: price,
-  cacheWritePerMTok: price,
+  ...PriceRatesSchema.shape,
+  sources: z
+    .array(z.url({ protocol: /^https?$/ }))
+    .min(1)
+    .optional(),
+  longContext: PriceRatesSchema.extend({
+    inputTokenThreshold: z.number().int().nonnegative(),
+  }).optional(),
 });
 
 export const PricingFileSchema = z
   .object({
     version: z.literal(1),
     currency: z.literal("USD"),
+    basis: z.enum(["historical", "current-reference"]).optional(),
+    observedAt: date.optional(),
     entries: z.array(PricingEntrySchema),
   })
   .superRefine((file, ctx) => {
+    if (file.basis === "current-reference" && file.observedAt === undefined) {
+      ctx.addIssue({ code: "custom", message: "current-reference requires observedAt" });
+    }
+    if (file.basis !== "current-reference" && file.observedAt !== undefined) {
+      ctx.addIssue({ code: "custom", message: "observedAt requires current-reference" });
+    }
     const byKey = new Map<string, z.infer<typeof PricingEntrySchema>[]>();
     for (const entry of file.entries) {
+      if (entry.validTo !== null && entry.validTo < entry.validFrom) {
+        ctx.addIssue({ code: "custom", message: "validTo precedes validFrom" });
+      }
+      if (
+        file.basis === "current-reference" &&
+        file.observedAt !== undefined &&
+        (entry.validFrom > file.observedAt ||
+          (entry.validTo !== null && entry.validTo < file.observedAt))
+      ) {
+        ctx.addIssue({ code: "custom", message: "reference entry must be valid on observedAt" });
+      }
       const key = `${entry.model} / ${entry.provider}`;
       const list = byKey.get(key) ?? [];
       list.push(entry);

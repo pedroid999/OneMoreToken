@@ -11,6 +11,42 @@ describe("data/pricing.json", () => {
     expect(() => loadPricing()).not.toThrow();
   });
 
+  it("rejects malformed policy, observation dates, provenance and tiers", () => {
+    const entry = {
+      model: "m",
+      provider: "p",
+      validFrom: "2026-10-21",
+      validTo: null,
+      inputPerMTok: 1,
+      outputPerMTok: 2,
+      cacheReadPerMTok: 0.1,
+      cacheWritePerMTok: 1.25,
+    };
+    const current = {
+      version: 1,
+      currency: "USD",
+      basis: "current-reference",
+      observedAt: "2026-10-21",
+      entries: [entry],
+    };
+    expect(PricingFileSchema.safeParse(current).success).toBe(true);
+    for (const invalid of [
+      { ...current, observedAt: undefined },
+      { ...current, observedAt: "2026-02-30" },
+      { ...current, basis: "guessed" },
+      { ...current, basis: undefined },
+      ...[
+        { validTo: "2026-10-20" },
+        { validFrom: "2026-10-22" },
+        { sources: ["not a URL"] },
+        { cacheWriteLongPerMTok: -1 },
+        { longContext: { inputTokenThreshold: -1 } },
+        { longContext: { inputTokenThreshold: 272000, inputPerMTok: 4 } },
+      ].map((change) => ({ ...current, entries: [{ ...entry, ...change }] })),
+    ])
+      expect(PricingFileSchema.safeParse(invalid).success).toBe(false);
+  });
+
   it("rejects overlapping validity ranges for the same model and provider", () => {
     const entry = {
       model: "m",
