@@ -190,7 +190,105 @@
   "session": {
     "count_zero": "{{count}} sesiones",
     "count_one": "{{count}} sesión",
-    "count_other": "{{count}} sesiones"
+    "count_other": "{{count}} sesiones",
+    "title": "Sesiones",
+    "period": "Periodo",
+    "agent": "Agente",
+    "allAgents": "Todos los agentes",
+    "agentName": {
+      "claudeCode": "Claude Code",
+      "gentleShell": "gentle-shell",
+      "pi": "Pi",
+      "opencode": "OpenCode"
+    },
+    "noValue": "—",
+    "seconds": "{{value}} s",
+    "list": {
+      "title": "Sesiones del periodo",
+      "started": "Inicio · UTC",
+      "agent": "Agente",
+      "cwd": "Directorio",
+      "branch": "Rama",
+      "turns": "Turnos",
+      "tokens": "Tokens · M",
+      "computed": "Coste calculado",
+      "estimatedApiEquivalent": "Equivalente API estimado",
+      "compactions": "Compactaciones",
+      "children": "Sesiones hijas",
+      "truncated": "Solo se listan las sesiones más recientes. Acota el periodo o el agente para ver el resto.",
+      "scope": "Turnos, tokens y costes cubren los turnos dentro del periodo. Abre una sesión para ver sus totales completos.",
+      "error": "Sesiones no disponibles. Revisa la API local y el periodo (ambos límites ISO, como máximo 366 días UTC) y reintenta."
+    },
+    "empty": {
+      "title": "No hay sesiones en este periodo",
+      "body": "Ingiere las sesiones locales de tus agentes, o elige otro periodo u otro agente.",
+      "command": "pnpm omt ingest"
+    },
+    "back": "Todas las sesiones",
+    "notFound": {
+      "title": "Sesión no encontrada",
+      "body": "Puede pertenecer a una fuente que ya no se ingiere. Vuelve a la lista y elige otra sesión."
+    },
+    "detail": {
+      "overview": "Resumen",
+      "agent": "Agente",
+      "cwd": "Directorio",
+      "branch": "Rama",
+      "started": "Inicio · UTC",
+      "ended": "Fin · UTC",
+      "tokens": "Tokens",
+      "compactions_one": "{{formatted}} compactación",
+      "compactions_other": "{{formatted}} compactaciones",
+      "error": "Sesión no disponible. Revisa la API local y reintenta.",
+      "commitsLater": "Los diffs de commits asociados llegan en la fase 4."
+    },
+    "context": {
+      "title": "Tamaño de contexto",
+      "chartName": "Tamaño de contexto por turno, con las compactaciones marcadas",
+      "turn": "Turno",
+      "size": "Tokens de contexto",
+      "compaction": "Compactación",
+      "estimate": "Estimación a partir del uso reportado: tokens de entrada + lectura de caché + escritura de caché de cada turno con uso.",
+      "empty": "Ningún turno reportó uso, así que no hay curva de contexto."
+    },
+    "turns": {
+      "title": "Turnos",
+      "idx": "Turno",
+      "role": "Rol",
+      "time": "Hora · UTC",
+      "model": "Modelo",
+      "effort": "Esfuerzo",
+      "context": "Contexto",
+      "input": "Entrada",
+      "output": "Salida",
+      "cacheRead": "Lectura de caché",
+      "cacheWrite": "Escritura de caché",
+      "cost": "Coste calculado",
+      "tools": "Herramientas",
+      "toolError": "{{tool}} (error)"
+    },
+    "role": {
+      "user": "Usuario",
+      "assistant": "Asistente",
+      "compaction": "Compactación",
+      "usage": "Uso"
+    },
+    "tools": {
+      "title": "Herramientas",
+      "tool": "Herramienta",
+      "calls": "Llamadas",
+      "errors": "Errores",
+      "duration": "Duración total",
+      "empty": "No hay llamadas a herramientas en esta sesión."
+    },
+    "related": {
+      "title": "Sesiones relacionadas",
+      "parent": "Sesión padre",
+      "children": "Sesiones hijas",
+      "none": "Sin sesión padre ni sesiones hijas.",
+      "parentMissing": "La sesión padre no se ha ingerido.",
+      "link": "{{agent}} · {{time}}"
+    }
   },
   "quota": {
     "estimated": "estimado",

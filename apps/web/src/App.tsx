@@ -7,6 +7,7 @@ import { type AppEnvironment, PreferencesProvider, usePreferences } from "./pref
 import { matchRoute, navigate, ROUTES, type Route, useLocation } from "./router";
 import { AboutView } from "./views/AboutView";
 import { ExplorerView } from "./views/ExplorerView";
+import { SessionView } from "./views/SessionView";
 import { SettingsView } from "./views/SettingsView";
 import { SummaryView } from "./views/SummaryView";
 import { UpcomingView } from "./views/UpcomingView";
@@ -28,7 +29,7 @@ export function App({ i18n, env }: AppProps) {
 
 const VIEW_ROUTES = ROUTES.filter((r) => r.id !== "settings" && r.id !== "about");
 const META_ROUTES = ROUTES.filter((r) => r.id === "settings" || r.id === "about");
-/** Query parameters that are not filters. */
+/** Query parameters that are not filters (`id` selects a session). */
 const NON_FILTER_PARAMS = new Set([
   "range",
   "from",
@@ -38,6 +39,7 @@ const NON_FILTER_PARAMS = new Set([
   "chart",
   "view",
   "filters",
+  "id",
 ]);
 
 /** Explorer filters ride in a single JSON param; each entry is one filter (spec §7.2). */
@@ -138,6 +140,8 @@ function View({ route }: { route: Route }) {
       return <SummaryView />;
     case "explorer":
       return <ExplorerView />;
+    case "session":
+      return <SessionView />;
     case "settings":
       return <SettingsView />;
     case "about":

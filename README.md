@@ -155,6 +155,23 @@ A saved view (`omt.saved-view/1`) stores the query without `from`/`to` plus a `r
 - `PUT /api/views/:id` creates or replaces a user view and returns it. `id` matches `^[a-z0-9-]{1,64}$` and must equal the body `id`. The file is written atomically (temporary file, then rename) with mode 0600 in a 0700 directory, at most 256 KB. Invalid ids or bodies return 400 `{"error":"invalid view"}`, preset ids 403 `{"error":"preset views are read-only"}`, and a symlinked views directory or file 409 `{"error":"unsafe view storage"}`, with nothing written. Symlinks are never followed.
 - `DELETE /api/views/:id` removes a user view (204); a missing view returns 404, a preset 403. Writes are serialized, and share the Host guard, Origin check and JSON requirement of the other write endpoints.
 
+### Sessions API
+
+The Session view backend (spec §7.1): metrics only, no message content. Both endpoints read through the `withDatabase` queue, never mutate data, sit behind the Host guard and disable HTTP caching. Types: `SessionList` and `SessionDetail` in `apps/cli/src/sessions/contract.ts`.
+
+#### `GET /api/sessions?from&to&agent&limit`
+
+- Lists sessions with at least one turn in `[from, to)`. `from`/`to` follow the Summary rules exactly (both or neither; default the rolling seven days). `agent` is optional (`claude-code`, `gentle-shell`, `pi`, `opencode`); `limit` is an integer 1–500 (default 100). Repeated, unknown-agent or invalid values return 400 `{"error":"invalid sessions query"}` before any database read.
+- Each item: `id`, `agent`, `cwd` (last path segment only; the full path is never returned), `branch`, `startedAt`, `endedAt`, `parentId`, `turns`, `usageTurns`, `tokens` (four categories and `total`), `costs.reported`/`costs.computed` as known-only sums with `known`/`unknown` counts (computed cost is known only when priced with the current catalog, as in the Summary), `compactions` and `children` (stored sessions whose parent is this one). Counts, tokens and costs cover only the session's turns inside the period.
+- Ordered newest started first (then by id); `truncated` is true when more than `limit` sessions match. `pricing` gives the catalog `basis` and `observedAt`.
+
+#### `GET /api/sessions/:id`
+
+- `id` must be a stored record id (`<sha256>:session:<sha256>`, lowercase hex); anything else returns 400 `{"error":"invalid session id"}` before any database read, and an unknown id returns 404 `{"error":"session not found"}`.
+- Returns `session` (the list item shape, with stats over every turn of the session), `turns` in `idx` order (`idx`, `role`, `ts`, `model`, `provider`, `effort`, `isCompaction`, `tokens` or `null` without usage, `contextTokens`, per-turn `costs.reported`/`costs.computed` or `null` when unknown, and `tools` with `tool`, `status`, `durationMs`), `parent` (`{ id, agent }`, `agent` null when the parent was never ingested) and `children` (`id`, `agent`, `startedAt` and their stats).
+- `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked. Commit diffs arrive in phase 4.
+- Unsafe aggregates or database failures on either endpoint return 500 `{"error":"sessions unavailable"}`.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.

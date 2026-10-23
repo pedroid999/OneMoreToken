@@ -35,7 +35,7 @@ describe("router (spec §8.1: the URL reflects the state)", () => {
       summary: undefined,
       burnRate: 3,
       explorer: undefined,
-      session: 2,
+      session: undefined,
       profiles: 3,
       agents: 2,
       git: 4,

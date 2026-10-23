@@ -125,6 +125,14 @@ describe("app shell", () => {
     expect(screen.queryByText("Esta vista llega en la fase 2.")).toBeNull();
   });
 
+  it("shows the session view at its route without counting the session id as a filter", async () => {
+    const id = `${"a".repeat(64)}:session:${"b".repeat(64)}`;
+    await renderApp(`/session?agent=pi&id=${id}`);
+    expect(screen.getByRole("heading", { level: 1, name: es.session.title })).toBeTruthy();
+    expect(screen.queryByText("Esta vista llega en la fase 2.")).toBeNull();
+    expect(screen.getByRole("contentinfo").textContent).toContain("1 filtro");
+  });
+
   it("shows range, plural filters, ingest status and theme mode in the status bar", async () => {
     await renderApp("/?agent=claude&model=opus");
     const bar = screen.getByRole("contentinfo");

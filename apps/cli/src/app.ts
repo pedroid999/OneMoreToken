@@ -8,6 +8,7 @@ import { readIngestJson, safeIngestOrigin } from "./ingest/http";
 import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
 import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
 import { defaultViewsDirectory } from "./options";
+import { isSessionId, parseSessionsQuery, readSession, readSessions } from "./sessions/service";
 import { readSummary, summaryPeriod } from "./summary/service";
 import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
 
@@ -69,6 +70,29 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       return c.json(await readSummary(db, period));
     } catch {
       return c.json({ error: "summary unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/sessions", async (c) => {
+    const query = parseSessionsQuery(new URL(c.req.url).searchParams);
+    if (!query) return c.json({ error: "invalid sessions query" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readSessions(db, query));
+    } catch {
+      return c.json({ error: "sessions unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/sessions/:id", async (c) => {
+    const id = c.req.param("id");
+    if (!isSessionId(id)) return c.json({ error: "invalid session id" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      const detail = await readSession(db, id);
+      return detail ? c.json(detail) : c.json({ error: "session not found" }, 404);
+    } catch {
+      return c.json({ error: "sessions unavailable" }, 500);
     }
   });
 

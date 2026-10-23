@@ -190,7 +190,105 @@
   "session": {
     "count_zero": "{{count}} sessions",
     "count_one": "{{count}} session",
-    "count_other": "{{count}} sessions"
+    "count_other": "{{count}} sessions",
+    "title": "Sessions",
+    "period": "Period",
+    "agent": "Agent",
+    "allAgents": "All agents",
+    "agentName": {
+      "claudeCode": "Claude Code",
+      "gentleShell": "gentle-shell",
+      "pi": "Pi",
+      "opencode": "OpenCode"
+    },
+    "noValue": "—",
+    "seconds": "{{value}} s",
+    "list": {
+      "title": "Sessions in the period",
+      "started": "Started · UTC",
+      "agent": "Agent",
+      "cwd": "Directory",
+      "branch": "Branch",
+      "turns": "Turns",
+      "tokens": "Tokens · M",
+      "computed": "Computed cost",
+      "estimatedApiEquivalent": "Estimated API equivalent",
+      "compactions": "Compactions",
+      "children": "Child sessions",
+      "truncated": "Only the newest sessions are listed. Narrow the period or the agent to see the rest.",
+      "scope": "Counts, tokens and costs cover the turns inside the period. Open a session for its full totals.",
+      "error": "Sessions unavailable. Check the local API and the period (both ISO bounds, at most 366 UTC days), then retry."
+    },
+    "empty": {
+      "title": "No sessions in this period",
+      "body": "Ingest your local agent sessions, or select another period or agent.",
+      "command": "pnpm omt ingest"
+    },
+    "back": "All sessions",
+    "notFound": {
+      "title": "Session not found",
+      "body": "It may belong to a source that is no longer ingested. Go back to the list and pick another session."
+    },
+    "detail": {
+      "overview": "Overview",
+      "agent": "Agent",
+      "cwd": "Directory",
+      "branch": "Branch",
+      "started": "Started · UTC",
+      "ended": "Ended · UTC",
+      "tokens": "Tokens",
+      "compactions_one": "{{formatted}} compaction",
+      "compactions_other": "{{formatted}} compactions",
+      "error": "Session unavailable. Check the local API, then retry.",
+      "commitsLater": "Associated commit diffs arrive in phase 4."
+    },
+    "context": {
+      "title": "Context size",
+      "chartName": "Context size per turn, with compactions marked",
+      "turn": "Turn",
+      "size": "Context tokens",
+      "compaction": "Compaction",
+      "estimate": "Estimate from reported usage: input + cache read + cache write tokens of each turn with usage.",
+      "empty": "No turn reported usage, so there is no context curve."
+    },
+    "turns": {
+      "title": "Turns",
+      "idx": "Turn",
+      "role": "Role",
+      "time": "Time · UTC",
+      "model": "Model",
+      "effort": "Effort",
+      "context": "Context",
+      "input": "Input",
+      "output": "Output",
+      "cacheRead": "Cache read",
+      "cacheWrite": "Cache write",
+      "cost": "Computed cost",
+      "tools": "Tools",
+      "toolError": "{{tool}} (error)"
+    },
+    "role": {
+      "user": "User",
+      "assistant": "Assistant",
+      "compaction": "Compaction",
+      "usage": "Usage"
+    },
+    "tools": {
+      "title": "Tools",
+      "tool": "Tool",
+      "calls": "Calls",
+      "errors": "Errors",
+      "duration": "Total duration",
+      "empty": "No tool calls in this session."
+    },
+    "related": {
+      "title": "Related sessions",
+      "parent": "Parent session",
+      "children": "Child sessions",
+      "none": "No parent or child sessions.",
+      "parentMissing": "Parent session not ingested.",
+      "link": "{{agent}} · {{time}}"
+    }
   },
   "quota": {
     "estimated": "estimated",
