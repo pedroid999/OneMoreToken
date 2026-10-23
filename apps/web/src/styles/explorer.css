@@ -1,0 +1,179 @@
+/* Explorer view (spec §7.2). Design tokens only, like every stylesheet (spec §8.2). */
+
+.explorer__layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
+.explorer__main {
+  flex: 3 1 calc(var(--layout-sidebar-width) * 3);
+  min-width: 0;
+}
+
+.explorer__aside {
+  flex: 1 1 var(--layout-sidebar-width);
+  min-width: 0;
+}
+
+.explorer__main > .panel + .panel {
+  margin-top: var(--space-6);
+}
+
+.explorer__group {
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  border: none;
+}
+
+.explorer__group:last-child {
+  margin-bottom: 0;
+}
+
+.explorer__label {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.explorer__options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-4);
+}
+
+.explorer__field {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.explorer__input {
+  min-height: var(--layout-control-height);
+  padding: 0 var(--space-3);
+  color: var(--color-fg);
+  background: var(--color-bg);
+  border: var(--border-thin) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.explorer__input:hover {
+  border-color: var(--color-accent);
+}
+
+.explorer__input--grow {
+  flex: 1 1 var(--layout-sidebar-width);
+  min-width: 0;
+}
+
+.explorer__filters {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.explorer__filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explorer__filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.explorer__muted {
+  margin: var(--space-2) 0 0;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.explorer__warning {
+  margin: 0 0 var(--space-4);
+  color: var(--color-warning);
+}
+
+.explorer__success {
+  margin: var(--space-4) 0 0;
+  color: var(--color-success);
+}
+
+.explorer__chart {
+  overflow-x: auto;
+  margin: 0 0 var(--space-6);
+}
+
+.explorer__table-wrap {
+  overflow-x: auto;
+}
+
+.explorer__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.explorer__table th,
+.explorer__table td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-thin) solid var(--color-border);
+  text-align: start;
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+}
+
+.explorer__table thead th {
+  color: var(--color-fg-muted);
+}
+
+.explorer__table td,
+.explorer__table thead th:not([data-type="dimension"]) {
+  text-align: end;
+}
+
+.explorer__table td[data-type="coverage"] {
+  color: var(--color-fg-muted);
+}
+
+.explorer__save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.explorer__views {
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explorer__view {
+  padding: var(--space-3) 0;
+  border-top: var(--border-thin) solid var(--color-border);
+}
+
+.explorer__view-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.explorer__tag {
+  padding: 0 var(--space-2);
+  color: var(--color-info);
+  border: var(--border-thin) solid var(--color-info);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+}
