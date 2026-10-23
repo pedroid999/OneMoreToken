@@ -90,6 +90,7 @@ export const parseClaudeCode: SourceParser = (content, context) => {
         provider: type === "assistant" ? "anthropic" : null,
         effort: optionalText(event.perTurnEffort ?? event.effort),
         subscription_id: null,
+        is_compaction: false,
       });
       const session = SessionSchema.parse({
         id: sessionId,
@@ -102,6 +103,7 @@ export const parseClaudeCode: SourceParser = (content, context) => {
         ended_at: turn.ts,
         title: null,
         format_version: context.adapterVersion,
+        parent_session_id: null,
       });
       let metrics: NormalizedBatch["usage"][number] | undefined;
       let longWrites = oneHourWrites.get(turnId) ?? 0;

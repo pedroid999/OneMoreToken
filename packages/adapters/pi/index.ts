@@ -88,6 +88,7 @@ export const parsePi: SourceParser = (content, context) => {
     ended_at: null,
     title: null,
     format_version: "3",
+    parent_session_id: null,
   });
   const events = new Map<string, Event>();
   for (const { data, line } of records.slice(1)) {
@@ -175,6 +176,7 @@ export const parsePi: SourceParser = (content, context) => {
       ts,
       ...state,
       subscription_id: null,
+      is_compaction: false,
     };
     batch.turns.push(turn);
     turns.set(event.id, turn);

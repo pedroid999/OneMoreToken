@@ -41,6 +41,7 @@ function batch(ctx = context): NormalizedBatch {
         ended_at: null,
         title: null,
         format_version: "3",
+        parent_session_id: null,
       },
     ],
     turns: [
@@ -54,6 +55,7 @@ function batch(ctx = context): NormalizedBatch {
         provider: "synthetic",
         effort: null,
         subscription_id: null,
+        is_compaction: false,
       },
     ],
     usage: [
@@ -140,6 +142,22 @@ describe("metrics-only ingestion", () => {
     );
     expect(calls).toBe(2);
     expect((await getCheckpoint(db, createSource(context).id))?.adapter_version).toBe("2");
+  });
+
+  it("persists a parent session link and a compaction turn, and rejects a non-boolean marker", async () => {
+    const linked = batch();
+    const parent = recordId(sourceFileId("opencode", "/synthetic/parent"), "session", "p");
+    fixtureRow(linked.sessions).parent_session_id = parent;
+    fixtureRow(linked.turns).is_compaction = true;
+    expect(await ingestSource(db, "linked", context, () => linked)).toBe("persisted");
+    const [, sessions, turns] = await stored();
+    expect(sessions?.[0]).toMatchObject({ parent_session_id: parent });
+    expect(turns?.[0]).toMatchObject({ is_compaction: true });
+    const before = await stored();
+    const invalid = batch();
+    Object.assign(fixtureRow(invalid.turns), { is_compaction: "yes" });
+    await expect(persistBatch(db, invalid, hashContent("other"))).rejects.toThrow();
+    expect(await stored()).toEqual(before);
   });
 
   it("reprices unchanged content once per canonical pricing change and upgrades legacy checkpoints", async () => {

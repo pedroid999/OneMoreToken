@@ -32,6 +32,7 @@ export const SessionSchema = z.object({
   ended_at: nullable(timestamp),
   title: nullable(z.string()),
   format_version: z.string().min(1),
+  parent_session_id: nullable(id),
 });
 
 export const TurnSchema = z.object({
@@ -44,6 +45,7 @@ export const TurnSchema = z.object({
   provider: nullable(z.string()),
   effort: nullable(z.string()),
   subscription_id: nullable(id),
+  is_compaction: z.boolean(),
 });
 
 export const UsageSchema = z.object({
