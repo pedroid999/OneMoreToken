@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Playwright MCP page snapshots can contain real local metrics (privacy, AGENTS.md rule 4)
+.playwright-mcp/

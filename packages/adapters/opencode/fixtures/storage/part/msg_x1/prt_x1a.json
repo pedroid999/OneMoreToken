@@ -1,0 +1,9 @@
+{
+  "id": "prt_x1a",
+  "messageID": "msg_x1",
+  "sessionID": "ses_legacy_dup",
+  "type": "tool",
+  "callID": "call_dup",
+  "tool": "read",
+  "state": { "status": "completed", "time": { "start": 1764547200000, "end": 1764547201000 } }
+}

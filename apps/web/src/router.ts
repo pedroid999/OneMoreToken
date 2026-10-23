@@ -27,8 +27,8 @@ export interface Route {
 export const ROUTES: readonly Route[] = [
   { id: "summary", path: "/", labelKey: "nav.summary" },
   { id: "burnRate", path: "/burn-rate", labelKey: "nav.burnRate", phase: 3 },
-  { id: "explorer", path: "/explorer", labelKey: "nav.explorer", phase: 2 },
-  { id: "session", path: "/session", labelKey: "nav.session", phase: 2 },
+  { id: "explorer", path: "/explorer", labelKey: "nav.explorer" },
+  { id: "session", path: "/session", labelKey: "nav.session" },
   { id: "profiles", path: "/profiles", labelKey: "nav.profiles", phase: 3 },
   { id: "agents", path: "/agents", labelKey: "nav.agents", phase: 2 },
   { id: "git", path: "/git", labelKey: "nav.git", phase: 4 },

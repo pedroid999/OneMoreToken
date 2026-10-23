@@ -1,0 +1,14 @@
+{
+  "id": "prt_l2a",
+  "messageID": "msg_l2",
+  "sessionID": "ses_legacy_only",
+  "type": "tool",
+  "callID": "call_list",
+  "tool": "list",
+  "state": {
+    "status": "completed",
+    "input": { "path": "/synthetic/PRIVATE_SENTINEL" },
+    "output": "PRIVATE_SENTINEL",
+    "time": { "start": 1759276820000, "end": 1759276820250 }
+  }
+}

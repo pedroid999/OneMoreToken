@@ -106,6 +106,33 @@ describe("app shell", () => {
     expect(screen.getByText("Esta vista llega en la fase 4.")).toBeTruthy();
   });
 
+  it("counts explorer filters but not its structural URL params in the status bar", async () => {
+    const filters = encodeURIComponent(
+      JSON.stringify([
+        { dimension: "agent", op: "in", values: ["pi"] },
+        { dimension: "tool", op: "notIn", values: ["bash"] },
+      ]),
+    );
+    await renderApp(
+      `/explorer?metrics=total&dimensions=day&chart=bar&view=mi-vista&filters=${filters}`,
+    );
+    expect(screen.getByRole("contentinfo").textContent).toContain("2 filtros");
+  });
+
+  it("shows the explorer at its route instead of the upcoming placeholder", async () => {
+    await renderApp("/explorer");
+    expect(screen.getByRole("heading", { level: 1, name: es.explorer.title })).toBeTruthy();
+    expect(screen.queryByText("Esta vista llega en la fase 2.")).toBeNull();
+  });
+
+  it("shows the session view at its route without counting the session id as a filter", async () => {
+    const id = `${"a".repeat(64)}:session:${"b".repeat(64)}`;
+    await renderApp(`/session?agent=pi&id=${id}`);
+    expect(screen.getByRole("heading", { level: 1, name: es.session.title })).toBeTruthy();
+    expect(screen.queryByText("Esta vista llega en la fase 2.")).toBeNull();
+    expect(screen.getByRole("contentinfo").textContent).toContain("1 filtro");
+  });
+
   it("shows range, plural filters, ingest status and theme mode in the status bar", async () => {
     await renderApp("/?agent=claude&model=opus");
     const bar = screen.getByRole("contentinfo");

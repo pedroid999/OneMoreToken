@@ -30,6 +30,15 @@ export function formatNumber(value: number, language: Language): string {
   return numberFormat(language, { maximumFractionDigits: 2 }).format(value);
 }
 
+/** Ratios such as the cache hit ratio, with one decimal (spec §7.2). */
+export function formatPercent(value: number, language: Language): string {
+  return numberFormat(language, {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 export function formatDateTime(date: Date, language: Language): string {
   return new Intl.DateTimeFormat(LOCALES[language], {
     dateStyle: "medium",

@@ -6,6 +6,8 @@ import { StatusBar } from "./components/StatusBar";
 import { type AppEnvironment, PreferencesProvider, usePreferences } from "./prefs/usePreferences";
 import { matchRoute, navigate, ROUTES, type Route, useLocation } from "./router";
 import { AboutView } from "./views/AboutView";
+import { ExplorerView } from "./views/ExplorerView";
+import { SessionView } from "./views/SessionView";
 import { SettingsView } from "./views/SettingsView";
 import { SummaryView } from "./views/SummaryView";
 import { UpcomingView } from "./views/UpcomingView";
@@ -27,8 +29,30 @@ export function App({ i18n, env }: AppProps) {
 
 const VIEW_ROUTES = ROUTES.filter((r) => r.id !== "settings" && r.id !== "about");
 const META_ROUTES = ROUTES.filter((r) => r.id === "settings" || r.id === "about");
-/** Query parameters that are not filters. */
-const NON_FILTER_PARAMS = new Set(["range", "from", "to"]);
+/** Query parameters that are not filters (`id` selects a session). */
+const NON_FILTER_PARAMS = new Set([
+  "range",
+  "from",
+  "to",
+  "metrics",
+  "dimensions",
+  "chart",
+  "view",
+  "filters",
+  "id",
+]);
+
+/** Explorer filters ride in a single JSON param; each entry is one filter (spec §7.2). */
+function explorerFilterCount(params: URLSearchParams): number {
+  const raw = params.get("filters");
+  if (!raw) return 0;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.length : 0;
+  } catch {
+    return 0;
+  }
+}
 
 function Shell({ root }: { root: HTMLElement }) {
   const { t, i18n } = useTranslation();
@@ -62,9 +86,10 @@ function Shell({ root }: { root: HTMLElement }) {
           ? t("summary.last7Days")
           : t("summary.customPeriod")
         : t("status.rangeLast7Days");
-  const filterCount = new Set(
-    [...new URLSearchParams(search).keys()].filter((key) => !NON_FILTER_PARAMS.has(key)),
-  ).size;
+  const searchParams = new URLSearchParams(search);
+  const filterCount =
+    new Set([...searchParams.keys()].filter((key) => !NON_FILTER_PARAMS.has(key))).size +
+    explorerFilterCount(searchParams);
 
   const navList = (routes: readonly Route[]) => (
     <ul className="sidebar__list">
@@ -113,6 +138,10 @@ function View({ route }: { route: Route }) {
   switch (route.id) {
     case "summary":
       return <SummaryView />;
+    case "explorer":
+      return <ExplorerView />;
+    case "session":
+      return <SessionView />;
     case "settings":
       return <SettingsView />;
     case "about":

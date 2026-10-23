@@ -1,0 +1,8 @@
+{
+  "id": "ses_legacy_dup",
+  "projectID": "prj_synthetic",
+  "directory": "/synthetic/migrated",
+  "title": "PRIVATE_SENTINEL migrated",
+  "version": "0.9.0-synthetic",
+  "time": { "created": 1764547200000, "updated": 1764547260000 }
+}

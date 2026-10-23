@@ -8,3 +8,5 @@
 {"type":"future-event","data":"SYNTHETIC_PRIVATE_UNKNOWN"}
 {"type":"assistant","secret":"SYNTHETIC_PRIVATE_CORRUPTION"
 {"type":"assistant","uuid":"a4","sessionId":"s1","timestamp":"2026-10-16T10:00:04.000Z","effort":"low","message":{"id":"m2","model":"unknown-model","content":"SYNTHETIC_PRIVATE_TEXT","usage":{"input_tokens":1,"output_tokens":1,"cache_creation":{"ephemeral_1h_input_tokens":2,"ephemeral_5m_input_tokens":3}}}}
+{"type":"system","subtype":"compact_boundary","content":"SYNTHETIC_PRIVATE_BOUNDARY","isMeta":false,"level":"info","uuid":"c1","parentUuid":null,"logicalParentUuid":"a4","sessionId":"s1","timestamp":"2026-10-16T10:00:04.000Z","cwd":"/synthetic/project","gitBranch":"main","compactMetadata":{"trigger":"SYNTHETIC_PRIVATE_TRIGGER","preTokens":4321}}
+{"type":"user","uuid":"u3","parentUuid":"c1","sessionId":"s1","timestamp":"2026-10-16T10:00:04.000Z","cwd":"/synthetic/project","gitBranch":"main","isCompactSummary":true,"isVisibleInTranscriptOnly":true,"message":{"role":"user","content":"SYNTHETIC_PRIVATE_SUMMARY"}}
