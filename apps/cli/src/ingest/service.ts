@@ -5,18 +5,23 @@ import { join, normalize, parse, sep } from "node:path";
 import {
   CLAUDE_CODE_ADAPTER_VERSION,
   GENTLE_SHELL_ADAPTER_VERSION,
+  OPENCODE_ADAPTER_VERSION,
   PI_ADAPTER_VERSION,
   parseClaudeCode,
   parseGentleShell,
+  parseOpenCode,
   parsePi,
+  readOpenCodeSessions,
 } from "@omt/adapters";
 import { type Database, ingestSource, loadPricing, type SourceParser } from "@omt/core";
 import { withDatabase } from "../db-queue";
 import { type IngestAgent, type IngestOptions, validateIngestOptions } from "../ingest-options";
 
 /** POST /api/ingest response. All counters are nonnegative integers for this request only.
- * files: selected JSONL snapshots attempted; persisted/skipped: core checkpoint outcomes;
- * failed: file processing/directory discovery failures; issues: newly parsed row issues plus failures.
+ * files: selected JSONL snapshots (OpenCode: sessions) attempted;
+ * persisted/skipped: core checkpoint outcomes;
+ * failed: file processing/directory discovery failures (OpenCode: unreadable database/session);
+ * issues: newly parsed row issues plus failures.
  * Missing default roots and symlinks are ignored. No paths/content/exception text are returned.
  * Previously stored issues in unchanged files are not counted again.
  */
@@ -47,17 +52,23 @@ const adapters = {
   "claude-code": { version: CLAUDE_CODE_ADAPTER_VERSION, parse: parseClaudeCode },
   "gentle-shell": { version: GENTLE_SHELL_ADAPTER_VERSION, parse: parseGentleShell },
   pi: { version: PI_ADAPTER_VERSION, parse: parsePi },
+  opencode: { version: OPENCODE_ADAPTER_VERSION, parse: parseOpenCode },
 };
 const sourceFs: IngestFileSystem = {
   lstat,
   readdir: (path) => readdir(path, { withFileTypes: true }),
   readFile: (path) => readFile(path, "utf8"),
 };
-export function defaultIngestRoots(home = homedir()): IngestRoot[] {
+export function defaultIngestRoots(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+): IngestRoot[] {
+  const dataHome = env.XDG_DATA_HOME || join(home, ".local", "share");
   return [
     { agent: "claude-code", path: join(home, ".claude", "projects") },
     { agent: "gentle-shell", path: join(home, ".gentle-shell", "agent", "sessions") },
     { agent: "pi", path: join(home, ".pi", "agent", "sessions") },
+    { agent: "opencode", path: join(dataHome, "opencode") },
   ];
 }
 
@@ -88,11 +99,10 @@ export function ingestSessions(
       metrics.failed++;
       metrics.issues++;
     };
-    const file = async (path: string, agent: IngestAgent, info: Stats) => {
-      if (info.mtimeMs < since) return;
+    const ingest = async (path: string, agent: IngestAgent, read: () => Promise<string>) => {
       metrics.files++;
       try {
-        const content = await fs.readFile(path);
+        const content = await read();
         const adapter = adapters[agent];
         let issues = 0;
         const result = await ingestSource(
@@ -115,6 +125,19 @@ export function ingestSessions(
         metrics.issues += issues;
       } catch {
         failure();
+      }
+    };
+    const file = async (path: string, agent: IngestAgent, info: Stats) => {
+      if (info.mtimeMs < since) return;
+      await ingest(path, agent, () => fs.readFile(path));
+    };
+    // One virtual source per session (`<root>/sessions/<id>`); the reader never writes or locks.
+    const opencode = async (path: string) => {
+      const result = await readOpenCodeSessions(path);
+      for (let index = 0; index < result.failures; index++) failure();
+      for (const session of result.sessions) {
+        if (session.updated !== null && session.updated < since) continue;
+        await ingest(session.path, "opencode", async () => session.content);
       }
     };
     const walk = async (path: string, agent: IngestAgent): Promise<void> => {
@@ -156,7 +179,9 @@ export function ingestSessions(
           }
           if (!info.isDirectory()) throw new Error("not a directory");
         }
-        if (!linked) await walk(path, root.agent);
+        if (linked) continue;
+        if (root.agent === "opencode") await opencode(path);
+        else await walk(path, root.agent);
       } catch (error) {
         if (!request.path && (error as NodeJS.ErrnoException).code === "ENOENT") continue;
         failure();

@@ -15,11 +15,19 @@ export interface ServeOptions {
 
 export type ParseResult<T> = { ok: true; options: T } | { ok: false; error: string };
 
+function appDataHome(env: NodeJS.ProcessEnv, home: string): string {
+  return join(env.XDG_DATA_HOME || join(home, ".local", "share"), "one-more-token");
+}
+
 /** `$OMT_DB`, else `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. */
 export function defaultDatabasePath(env: NodeJS.ProcessEnv, home: string): string {
   if (env.OMT_DB) return env.OMT_DB;
-  const dataHome = env.XDG_DATA_HOME || join(home, ".local", "share");
-  return join(dataHome, "one-more-token", "omt.duckdb");
+  return join(appDataHome(env, home), "omt.duckdb");
+}
+
+/** User saved views: `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views`, whatever `--db` says. */
+export function defaultViewsDirectory(env: NodeJS.ProcessEnv, home: string): string {
+  return join(appDataHome(env, home), "views");
 }
 
 export function parseServeOptions(

@@ -34,8 +34,8 @@ describe("router (spec §8.1: the URL reflects the state)", () => {
     expect(phases).toEqual({
       summary: undefined,
       burnRate: 3,
-      explorer: 2,
-      session: 2,
+      explorer: undefined,
+      session: undefined,
       profiles: 3,
       agents: 2,
       git: 4,

@@ -58,6 +58,7 @@ async function turn(id: string, session: string, ts: string, usage = true) {
             ended_at: null,
             title: null,
             format_version: "test",
+            parent_session_id: null,
           },
         ],
         turns: [],
@@ -69,7 +70,7 @@ async function turn(id: string, session: string, ts: string, usage = true) {
       hashContent(JSON.stringify(PricingFileSchema.parse(loadPricing()))),
     );
   }
-  await db.run("INSERT INTO turns VALUES ($1, $2, 0, $3, $4, NULL, NULL, NULL, NULL)", [
+  await db.run("INSERT INTO turns VALUES ($1, $2, 0, $3, $4, NULL, NULL, NULL, NULL, false)", [
     id,
     sessionId,
     usage ? "assistant" : "user",
@@ -112,6 +113,7 @@ const parser: SourceParser = (_content, context) => {
     provider: "synthetic",
     effort: null,
     subscription_id: null,
+    is_compaction: false,
   }));
   return {
     source,
@@ -127,6 +129,7 @@ const parser: SourceParser = (_content, context) => {
         ended_at: null,
         title: null,
         format_version: "test",
+        parent_session_id: null,
       },
     ],
     turns,
@@ -415,7 +418,7 @@ describe("GET /api/summary", () => {
     all.mockRestore();
     expect(await (await application.request("/api/health")).json()).toEqual({
       status: "ok",
-      schemaVersion: 3,
+      schemaVersion: 4,
     });
   });
 });

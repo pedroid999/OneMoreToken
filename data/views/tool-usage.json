@@ -1,0 +1,22 @@
+{
+  "schema": "omt.saved-view/1",
+  "id": "tool-usage",
+  "name": "explorer.presets.toolUsage.name",
+  "description": "explorer.presets.toolUsage.description",
+  "query": {
+    "metrics": ["turns"],
+    "dimensions": ["tool"],
+    "filters": [],
+    "range": "last30Days"
+  },
+  "chart": { "type": "bar", "encoding": { "x": "turns", "y": "tool" } },
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": { "name": "table" },
+    "mark": { "type": "bar" },
+    "encoding": {
+      "x": { "field": "turns", "type": "quantitative" },
+      "y": { "field": "tool", "type": "nominal", "sort": "-x" }
+    }
+  }
+}

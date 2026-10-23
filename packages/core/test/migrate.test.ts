@@ -45,7 +45,7 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4]);
     expect(await tableNames(db)).toEqual(
       [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
     );
@@ -61,7 +61,7 @@ describe("migrate", () => {
     const ledger = await db.all<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3]);
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4]);
     db.close();
   });
 
@@ -75,7 +75,7 @@ describe("migrate", () => {
     expect(await tableNames(db)).toEqual([...SPEC_TABLES, "schema_migrations"].sort());
     await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
     const before = await db.all("SELECT * FROM sources");
-    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3]);
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4]);
     expect(await db.all("SELECT * FROM sources")).toEqual(before);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
     db.close();
@@ -92,10 +92,35 @@ describe("migrate", () => {
     await db.run("INSERT INTO usage VALUES ('turn', 1, 2, 3, 4, 0, 5)");
     const usage = await db.all("SELECT * FROM usage");
     const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4]);
     expect(await db.all("SELECT * FROM usage")).toEqual(usage);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
       checkpoints.map((row) => ({ ...row, pricing_hash: null })),
+    );
+    db.close();
+  });
+
+  it("upgrades version 3 keeping sessions and turns with no parent and no compaction", async () => {
+    const dir = temp("omt-session-upgrade-");
+    for (const migration of listMigrations().filter((entry) => entry.version <= 3)) {
+      writeFileSync(join(dir, migration.name), readFileSync(migration.path, "utf8"));
+    }
+    const db = await openDatabase(":memory:");
+    await migrate(db, dir);
+    await db.run(
+      "INSERT INTO sessions VALUES ('s', 'src', 'pi', NULL, NULL, NULL, '2026-01-01T00:00:00Z', NULL, NULL, '3')",
+    );
+    await db.run(
+      "INSERT INTO turns VALUES ('t', 's', 0, 'assistant', '2026-01-01T00:00:00Z', 'm', 'p', NULL, NULL)",
+    );
+    const sessions = await db.all("SELECT * FROM sessions");
+    const turns = await db.all("SELECT * FROM turns");
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4]);
+    expect(await db.all("SELECT * FROM sessions")).toEqual(
+      sessions.map((row) => ({ ...row, parent_session_id: null })),
+    );
+    expect(await db.all("SELECT * FROM turns")).toEqual(
+      turns.map((row) => ({ ...row, is_compaction: false })),
     );
     db.close();
   });

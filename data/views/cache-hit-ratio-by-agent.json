@@ -1,0 +1,28 @@
+{
+  "schema": "omt.saved-view/1",
+  "id": "cache-hit-ratio-by-agent",
+  "name": "explorer.presets.cacheHitRatioByAgent.name",
+  "description": "explorer.presets.cacheHitRatioByAgent.description",
+  "query": {
+    "metrics": ["cacheHitRatio"],
+    "dimensions": ["day", "agent"],
+    "filters": [],
+    "range": "last30Days"
+  },
+  "chart": { "type": "line", "encoding": { "x": "day", "y": "cacheHitRatio", "color": "agent" } },
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": { "name": "table" },
+    "mark": { "type": "line", "point": true },
+    "encoding": {
+      "x": { "field": "day", "type": "temporal", "timeUnit": "utcyearmonthdate" },
+      "y": {
+        "field": "cacheHitRatio",
+        "type": "quantitative",
+        "scale": { "domain": [0, 1] },
+        "axis": { "format": "%" }
+      },
+      "color": { "field": "agent", "type": "nominal" }
+    }
+  }
+}

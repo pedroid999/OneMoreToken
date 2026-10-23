@@ -1,10 +1,16 @@
+import { homedir } from "node:os";
 import type { Database } from "@omt/core";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { withDatabase } from "./db-queue";
+import { isJsonRequest, readBoundedJson } from "./explorer/http";
+import { parseExplorerQuery, readExplorer } from "./explorer/service";
 import { readIngestJson, safeIngestOrigin } from "./ingest/http";
 import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
 import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
+import { defaultViewsDirectory } from "./options";
+import { isSessionId, parseSessionsQuery, readSession, readSessions } from "./sessions/service";
 import { readSummary, summaryPeriod } from "./summary/service";
+import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
 
 export interface Health {
   status: "ok";
@@ -16,7 +22,13 @@ export interface AppOptions {
   allowedHosts?: readonly string[];
   /** Discovery dependencies; roots: [] disables real home-directory discovery in tests. */
   ingest?: IngestServiceOptions;
+  /** Saved views storage; tests pass a temporary directory instead of the real data home. */
+  views?: Partial<ViewStoreOptions>;
 }
+
+/** Explorer bodies are small: 2 dimensions, 4 metrics, at most 10 filters of 50 values. */
+const MAX_EXPLORER_BYTES = 64 * 1024;
+const INVALID_EXPLORER_QUERY = "invalid explorer query";
 
 const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "::1"];
 
@@ -58,6 +70,105 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       return c.json(await readSummary(db, period));
     } catch {
       return c.json({ error: "summary unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/sessions", async (c) => {
+    const query = parseSessionsQuery(new URL(c.req.url).searchParams);
+    if (!query) return c.json({ error: "invalid sessions query" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readSessions(db, query));
+    } catch {
+      return c.json({ error: "sessions unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/sessions/:id", async (c) => {
+    const id = c.req.param("id");
+    if (!isSessionId(id)) return c.json({ error: "invalid session id" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      const detail = await readSession(db, id);
+      return detail ? c.json(detail) : c.json({ error: "session not found" }, 404);
+    } catch {
+      return c.json({ error: "sessions unavailable" }, 500);
+    }
+  });
+
+  /** Browser writes need a loopback Origin (or none) and JSON, which forces a CORS preflight. */
+  const guardWrite = (c: Context, json: boolean) => {
+    if (!safeIngestOrigin(c.req.header("origin"))) {
+      return c.json({ error: "forbidden origin" }, 403);
+    }
+    if (json && !isJsonRequest(c.req.header("content-type"))) {
+      return c.json({ error: "application/json required" }, 415);
+    }
+    return null;
+  };
+
+  app.post("/api/explorer/query", async (c) => {
+    const rejected = guardWrite(c, true);
+    if (rejected) return rejected;
+    let request: ReturnType<typeof parseExplorerQuery> = null;
+    try {
+      request = parseExplorerQuery(await readBoundedJson(c.req.raw, MAX_EXPLORER_BYTES));
+    } catch {
+      // Malformed or oversized: same fixed diagnostic as any invalid query.
+    }
+    if (!request) return c.json({ error: INVALID_EXPLORER_QUERY }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readExplorer(db, request));
+    } catch {
+      return c.json({ error: "explorer unavailable" }, 500);
+    }
+  });
+
+  const views = createViewStore({
+    directory: options.views?.directory ?? defaultViewsDirectory(process.env, homedir()),
+    ...(options.views?.presetsDirectory
+      ? { presetsDirectory: options.views.presetsDirectory }
+      : {}),
+  });
+  const viewFailure = (c: Context, error: unknown) =>
+    error instanceof ViewError
+      ? c.json({ error: error.message }, error.status)
+      : c.json({ error: "views unavailable" }, 500);
+
+  app.get("/api/views", async (c) => {
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await views.list());
+    } catch (error) {
+      return viewFailure(c, error);
+    }
+  });
+
+  app.put("/api/views/:id", async (c) => {
+    const rejected = guardWrite(c, true);
+    if (rejected) return rejected;
+    let input: unknown;
+    try {
+      input = await readBoundedJson(c.req.raw, MAX_VIEW_BYTES);
+    } catch {
+      return c.json({ error: "invalid view" }, 400);
+    }
+    try {
+      return c.json(await views.put(c.req.param("id"), input));
+    } catch (error) {
+      return viewFailure(c, error);
+    }
+  });
+
+  app.delete("/api/views/:id", async (c) => {
+    const rejected = guardWrite(c, false);
+    if (rejected) return rejected;
+    try {
+      await views.remove(c.req.param("id"));
+      return c.body(null, 204);
+    } catch (error) {
+      return viewFailure(c, error);
     }
   });
 

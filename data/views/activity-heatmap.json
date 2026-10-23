@@ -1,0 +1,26 @@
+{
+  "schema": "omt.saved-view/1",
+  "id": "activity-heatmap",
+  "name": "explorer.presets.activityHeatmap.name",
+  "description": "explorer.presets.activityHeatmap.description",
+  "query": {
+    "metrics": ["turns"],
+    "dimensions": ["dayOfWeek", "hourOfDay"],
+    "filters": [],
+    "range": "last90Days"
+  },
+  "chart": {
+    "type": "heatmap",
+    "encoding": { "x": "hourOfDay", "y": "dayOfWeek", "color": "turns" }
+  },
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": { "name": "table" },
+    "mark": { "type": "rect" },
+    "encoding": {
+      "x": { "field": "hourOfDay", "type": "ordinal" },
+      "y": { "field": "dayOfWeek", "type": "ordinal" },
+      "color": { "field": "turns", "type": "quantitative" }
+    }
+  }
+}

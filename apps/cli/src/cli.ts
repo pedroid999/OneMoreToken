@@ -43,11 +43,14 @@ Options for serve:
 
 Options for ingest (start omt serve first):
   --url <url>           Loopback HTTP API URL (default ${DEFAULT_API_URL})
-  --agent <agent>       claude-code, gentle-shell or pi (default: all)
+  --agent <agent>       claude-code, gentle-shell, pi or opencode (default: all)
   --path <directory>    Absolute source directory; requires --agent
+                        (opencode: the data directory holding opencode.db/storage)
   --since <timestamp>   ISO timestamp: select files by modification time only
+                        (opencode: sessions by last update time)
                         Defaults: ~/.claude/projects/, ~/.gentle-shell/agent/sessions/,
-                        ~/.pi/agent/sessions/. Source files are read-only; metrics only.
+                        ~/.pi/agent/sessions/, \${XDG_DATA_HOME:-~/.local/share}/opencode/.
+                        Source files are read-only; metrics only.
 
 Global options:
   -h, --help      Show this help

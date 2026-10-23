@@ -1,0 +1,25 @@
+{
+  "schema": "omt.saved-view/1",
+  "id": "cost-by-model",
+  "name": "explorer.presets.costByModel.name",
+  "description": "explorer.presets.costByModel.description",
+  "query": {
+    "metrics": ["computedCost", "reportedCost"],
+    "dimensions": ["model"],
+    "filters": [],
+    "range": "last30Days"
+  },
+  "chart": { "type": "barGrouped", "encoding": { "x": "model" } },
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": { "name": "table" },
+    "transform": [{ "fold": ["computedCost", "reportedCost"], "as": ["cost", "usd"] }],
+    "mark": { "type": "bar" },
+    "encoding": {
+      "x": { "field": "model", "type": "nominal" },
+      "xOffset": { "field": "cost", "type": "nominal" },
+      "y": { "field": "usd", "type": "quantitative" },
+      "color": { "field": "cost", "type": "nominal" }
+    }
+  }
+}

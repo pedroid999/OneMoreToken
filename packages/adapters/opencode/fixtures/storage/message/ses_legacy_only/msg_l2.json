@@ -1,0 +1,13 @@
+{
+  "id": "msg_l2",
+  "sessionID": "ses_legacy_only",
+  "role": "assistant",
+  "time": { "created": 1759276810000, "completed": 1759276900000 },
+  "modelID": "model-a",
+  "providerID": "synthetic",
+  "mode": "build",
+  "path": { "cwd": "/synthetic/legacy", "root": "/synthetic/legacy" },
+  "system": ["PRIVATE_SENTINEL system"],
+  "cost": 0.75,
+  "tokens": { "input": 50, "output": 10, "reasoning": 2, "cache": { "read": 5, "write": 0 } }
+}

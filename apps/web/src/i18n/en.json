@@ -65,10 +65,230 @@
       "command": "pnpm omt ingest"
     }
   },
+  "explorer": {
+    "title": "Explorer",
+    "configure": "Configure",
+    "metrics": "Metrics · up to 4",
+    "metric": {
+      "input": "Input tokens",
+      "output": "Output tokens",
+      "cacheRead": "Cache read",
+      "cacheWrite": "Cache write",
+      "total": "Total tokens",
+      "computedCost": "Computed cost",
+      "reportedCost": "Reported cost",
+      "cacheHitRatio": "Cache hit ratio",
+      "turns": "Turns",
+      "sessions": "Sessions"
+    },
+    "dimensions": "Dimensions · up to 2",
+    "dimension": {
+      "agent": "Agent",
+      "model": "Model",
+      "provider": "Provider",
+      "subscription": "Subscription",
+      "profile": "Profile",
+      "role": "Role",
+      "effort": "Effort",
+      "repo": "Repo",
+      "branch": "Branch",
+      "tool": "Tool",
+      "day": "Day",
+      "hourOfDay": "Hour of day",
+      "dayOfWeek": "Day of week"
+    },
+    "chart": "Chart",
+    "chartType": {
+      "bar": "Bars",
+      "barStacked": "Stacked bars",
+      "barGrouped": "Grouped bars",
+      "line": "Lines",
+      "area": "Area",
+      "heatmap": "Heatmap",
+      "treemap": "Treemap",
+      "sankey": "Sankey",
+      "scatter": "Scatter"
+    },
+    "chartNeeds": {
+      "oneDimension": "This chart needs at least one dimension.",
+      "twoDimensions": "This chart needs two dimensions.",
+      "exactlyTwoDimensions": "This chart needs exactly two dimensions: source and target.",
+      "twoMetrics": "This chart needs at least two metrics."
+    },
+    "chartError": "The chart could not be rendered.",
+    "range": "Period",
+    "last7Days": "Last 7 days",
+    "last30Days": "Last 30 days",
+    "last90Days": "Last 90 days",
+    "last365Days": "Last 365 days",
+    "customPeriod": "Custom period",
+    "from": "From (UTC)",
+    "to": "To (UTC)",
+    "filters": "Filters",
+    "addFilter": "Add filter",
+    "removeFilter": "Remove filter",
+    "filterValues": "Values, comma separated",
+    "filterDimension": "Filter dimension",
+    "filterOperator": "Filter operator",
+    "deleteView": "Delete",
+    "op": {
+      "in": "is",
+      "notIn": "is not"
+    },
+    "results": "Results",
+    "dataTable": "Data table",
+    "foldKey": "Metric",
+    "foldValue": "Value",
+    "chartName": "Chart · {{title}}",
+    "unknown": "Unknown",
+    "noValue": "(no value)",
+    "unavailable": "Not attributed until phase 3, grouped as no value: {{list}}.",
+    "overlapping": "Tool groups overlap: a turn that calls several tools counts once per tool, so group totals sum beyond the overall total.",
+    "truncated": "More groups exist beyond this limit; narrow the filters or the time range.",
+    "coverageKnown": "{{metric}} · known",
+    "coverageUnknown": "{{metric}} · unknown",
+    "error": "Explorer query failed. Check the local API, then retry.",
+    "empty": {
+      "title": "No data in this period",
+      "body": "Ingest your local agent sessions, or widen the period and the filters.",
+      "command": "pnpm omt ingest"
+    },
+    "views": "Saved views",
+    "viewsError": "Saved views unavailable. Check the local API, then retry.",
+    "viewsEmpty": "No saved views yet. Configure the explorer and save your first view.",
+    "preset": "Preset",
+    "saveView": "Save view",
+    "viewSaved": "View saved",
+    "viewName": "View name",
+    "cancel": "Cancel",
+    "deleteViewNamed": "Delete {{name}}",
+    "saveError": "Could not save the view. Check the name and retry.",
+    "deleteError": "Could not delete the view. Retry.",
+    "presets": {
+      "dailyTokensByAgent": {
+        "name": "Daily tokens by agent",
+        "description": "Stacked daily total tokens for each agent over the last 30 days."
+      },
+      "costByModel": {
+        "name": "Cost by model",
+        "description": "Computed and reported USD cost per model over the last 30 days."
+      },
+      "cacheHitRatioByAgent": {
+        "name": "Cache hit ratio by agent",
+        "description": "Daily cache hit ratio per agent over the last 30 days."
+      },
+      "activityHeatmap": {
+        "name": "Activity heatmap",
+        "description": "Turns by day of week and hour of day (UTC) over the last 90 days."
+      },
+      "toolUsage": {
+        "name": "Tool usage",
+        "description": "Turns per tool over the last 30 days. Groups overlap: a turn counts once per tool it called."
+      }
+    }
+  },
   "session": {
     "count_zero": "{{count}} sessions",
     "count_one": "{{count}} session",
-    "count_other": "{{count}} sessions"
+    "count_other": "{{count}} sessions",
+    "title": "Sessions",
+    "period": "Period",
+    "agent": "Agent",
+    "allAgents": "All agents",
+    "agentName": {
+      "claudeCode": "Claude Code",
+      "gentleShell": "gentle-shell",
+      "pi": "Pi",
+      "opencode": "OpenCode"
+    },
+    "noValue": "—",
+    "seconds": "{{value}} s",
+    "list": {
+      "title": "Sessions in the period",
+      "started": "Started · UTC",
+      "agent": "Agent",
+      "cwd": "Directory",
+      "branch": "Branch",
+      "turns": "Turns",
+      "tokens": "Tokens · M",
+      "computed": "Computed cost",
+      "estimatedApiEquivalent": "Estimated API equivalent",
+      "compactions": "Compactions",
+      "children": "Child sessions",
+      "truncated": "Only the newest sessions are listed. Narrow the period or the agent to see the rest.",
+      "scope": "Counts, tokens and costs cover the turns inside the period. Open a session for its full totals.",
+      "error": "Sessions unavailable. Check the local API and the period (both ISO bounds, at most 366 UTC days), then retry."
+    },
+    "empty": {
+      "title": "No sessions in this period",
+      "body": "Ingest your local agent sessions, or select another period or agent.",
+      "command": "pnpm omt ingest"
+    },
+    "back": "All sessions",
+    "notFound": {
+      "title": "Session not found",
+      "body": "It may belong to a source that is no longer ingested. Go back to the list and pick another session."
+    },
+    "detail": {
+      "overview": "Overview",
+      "agent": "Agent",
+      "cwd": "Directory",
+      "branch": "Branch",
+      "started": "Started · UTC",
+      "ended": "Ended · UTC",
+      "tokens": "Tokens",
+      "compactions_one": "{{formatted}} compaction",
+      "compactions_other": "{{formatted}} compactions",
+      "error": "Session unavailable. Check the local API, then retry.",
+      "commitsLater": "Associated commit diffs arrive in phase 4."
+    },
+    "context": {
+      "title": "Context size",
+      "chartName": "Context size per turn, with compactions marked",
+      "turn": "Turn",
+      "size": "Context tokens",
+      "compaction": "Compaction",
+      "estimate": "Estimate from reported usage: input + cache read + cache write tokens of each turn with usage.",
+      "empty": "No turn reported usage, so there is no context curve."
+    },
+    "turns": {
+      "title": "Turns",
+      "idx": "Turn",
+      "role": "Role",
+      "time": "Time · UTC",
+      "model": "Model",
+      "effort": "Effort",
+      "context": "Context",
+      "input": "Input",
+      "output": "Output",
+      "cacheRead": "Cache read",
+      "cacheWrite": "Cache write",
+      "cost": "Computed cost",
+      "tools": "Tools",
+      "toolError": "{{tool}} (error)"
+    },
+    "role": {
+      "user": "User",
+      "assistant": "Assistant",
+      "compaction": "Compaction",
+      "usage": "Usage"
+    },
+    "tools": {
+      "title": "Tools",
+      "tool": "Tool",
+      "calls": "Calls",
+      "errors": "Errors",
+      "duration": "Total duration",
+      "empty": "No tool calls in this session."
+    },
+    "related": {
+      "title": "Related sessions",
+      "parent": "Parent session",
+      "children": "Child sessions",
+      "none": "No parent or child sessions.",
+      "parentMissing": "Parent session not ingested.",
+      "link": "{{agent}} · {{time}}"
+    }
   },
   "quota": {
     "estimated": "estimated",
