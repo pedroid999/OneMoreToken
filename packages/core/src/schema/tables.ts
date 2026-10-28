@@ -116,6 +116,13 @@ export const SubscriptionSchema = z.object({
   ended_at: nullable(date),
 });
 
+export const SubscriptionRuleSchema = z.object({
+  position: z.number().int().nonnegative(),
+  subscription_id: id,
+  provider: z.string().min(1),
+  agent: nullable(z.string().min(1)),
+});
+
 export const QuotaWindowSchema = z.object({
   id,
   subscription_id: id,
@@ -173,6 +180,7 @@ export const TABLE_SCHEMAS = {
   calibrations: CalibrationSchema,
   commits: CommitSchema,
   ingest_issues: IngestIssueSchema,
+  subscription_rules: SubscriptionRuleSchema,
 } as const;
 
 export type TableName = keyof typeof TABLE_SCHEMAS;

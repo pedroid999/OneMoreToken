@@ -21,6 +21,7 @@ const SPEC_TABLES = [
   "calibrations",
   "commits",
   "ingest_issues",
+  "subscription_rules",
 ];
 
 const scratch: string[] = [];
@@ -35,7 +36,7 @@ afterEach(() => {
 
 async function tableNames(db: Awaited<ReturnType<typeof openDatabase>>): Promise<string[]> {
   const rows = await db.all<{ table_name: string }>(
-    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name",
+    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_type = 'BASE TABLE' ORDER BY table_name",
   );
   return rows.map((r) => r.table_name);
 }
@@ -45,7 +46,7 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5]);
     expect(await tableNames(db)).toEqual(
       [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
     );
@@ -61,7 +62,7 @@ describe("migrate", () => {
     const ledger = await db.all<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4]);
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5]);
     db.close();
   });
 
@@ -72,10 +73,12 @@ describe("migrate", () => {
     writeFileSync(join(dir, initial.name), readFileSync(initial.path, "utf8"));
     const db = await openDatabase(":memory:");
     await migrate(db, dir);
-    expect(await tableNames(db)).toEqual([...SPEC_TABLES, "schema_migrations"].sort());
+    expect(await tableNames(db)).toEqual(
+      [...SPEC_TABLES.filter((t) => t !== "subscription_rules"), "schema_migrations"].sort(),
+    );
     await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
     const before = await db.all("SELECT * FROM sources");
-    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4]);
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5]);
     expect(await db.all("SELECT * FROM sources")).toEqual(before);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
     db.close();
@@ -92,7 +95,7 @@ describe("migrate", () => {
     await db.run("INSERT INTO usage VALUES ('turn', 1, 2, 3, 4, 0, 5)");
     const usage = await db.all("SELECT * FROM usage");
     const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4, 5]);
     expect(await db.all("SELECT * FROM usage")).toEqual(usage);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
       checkpoints.map((row) => ({ ...row, pricing_hash: null })),
@@ -115,13 +118,24 @@ describe("migrate", () => {
     );
     const sessions = await db.all("SELECT * FROM sessions");
     const turns = await db.all("SELECT * FROM turns");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4, 5]);
     expect(await db.all("SELECT * FROM sessions")).toEqual(
       sessions.map((row) => ({ ...row, parent_session_id: null })),
     );
     expect(await db.all("SELECT * FROM turns")).toEqual(
       turns.map((row) => ({ ...row, is_compaction: false })),
     );
+    db.close();
+  });
+
+  it("adds the subscription rules table and the turn_subscriptions view", async () => {
+    const db = await openDatabase(":memory:");
+    await migrate(db);
+    const views = await db.all<{ table_name: string }>(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_type = 'VIEW'",
+    );
+    expect(views.map((v) => v.table_name)).toEqual(["turn_subscriptions"]);
+    expect(await db.all("SELECT * FROM turn_subscriptions")).toEqual([]);
     db.close();
   });
 
