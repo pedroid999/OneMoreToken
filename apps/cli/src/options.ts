@@ -30,6 +30,16 @@ export function defaultViewsDirectory(env: NodeJS.ProcessEnv, home: string): str
   return join(appDataHome(env, home), "views");
 }
 
+/** Manual quota readings (spec §5.3): `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`. */
+export function defaultCalibrationsPath(env: NodeJS.ProcessEnv, home: string): string {
+  return join(appDataHome(env, home), "calibrations.json");
+}
+
+/** The user's subscriptions: `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`. */
+export function defaultSubscriptionsConfigPath(env: NodeJS.ProcessEnv, home: string): string {
+  return join(env.XDG_CONFIG_HOME || join(home, ".config"), "one-more-token", "subscriptions.json");
+}
+
 export function parseServeOptions(
   args: string[],
   env: NodeJS.ProcessEnv,

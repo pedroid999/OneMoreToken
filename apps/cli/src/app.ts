@@ -1,13 +1,27 @@
 import { homedir } from "node:os";
-import type { Database } from "@omt/core";
+import {
+  type Database,
+  loadSubscriptions,
+  loadUserSubscriptions,
+  syncCalibrations,
+} from "@omt/core";
 import { type Context, Hono } from "hono";
+import {
+  CalibrationError,
+  createCalibrationStore,
+  MAX_CALIBRATION_BODY_BYTES,
+} from "./calibrations/store";
 import { withDatabase } from "./db-queue";
 import { isJsonRequest, readBoundedJson } from "./explorer/http";
 import { parseExplorerQuery, readExplorer } from "./explorer/service";
 import { readIngestJson, safeIngestOrigin } from "./ingest/http";
 import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
 import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
-import { defaultViewsDirectory } from "./options";
+import {
+  defaultCalibrationsPath,
+  defaultSubscriptionsConfigPath,
+  defaultViewsDirectory,
+} from "./options";
 import { isSessionId, parseSessionsQuery, readSession, readSessions } from "./sessions/service";
 import { readSummary, summaryPeriod } from "./summary/service";
 import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
@@ -24,6 +38,10 @@ export interface AppOptions {
   ingest?: IngestServiceOptions;
   /** Saved views storage; tests pass a temporary directory instead of the real data home. */
   views?: Partial<ViewStoreOptions>;
+  /** The user's subscriptions config; tests pass a temporary file instead of the real config home. */
+  subscriptions?: { configPath?: string };
+  /** Manual quota readings; tests pass a temporary file instead of the real data home. */
+  calibrations?: { path?: string };
 }
 
 /** Explorer bodies are small: 2 dimensions, 4 metrics, at most 10 filters of 50 values. */
@@ -169,6 +187,67 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       return c.body(null, 204);
     } catch (error) {
       return viewFailure(c, error);
+    }
+  });
+
+  const subscriptionsConfigPath =
+    options.subscriptions?.configPath ?? defaultSubscriptionsConfigPath(process.env, homedir());
+  const calibrations = createCalibrationStore(
+    options.calibrations?.path ?? defaultCalibrationsPath(process.env, homedir()),
+    () => {
+      const plans = loadSubscriptions();
+      const config = loadUserSubscriptions(subscriptionsConfigPath, plans);
+      if (!config.ok) return null;
+      const windows = new Map(
+        plans.plans.map((plan) => [plan.id, plan.windows.map((w) => w.kind)]),
+      );
+      return new Map(
+        config.file.subscriptions.map((s) => [s.id, new Set(windows.get(s.planId) ?? [])]),
+      );
+    },
+  );
+  const calibrationFailure = (c: Context, error: unknown) =>
+    error instanceof CalibrationError
+      ? c.json({ error: error.message }, error.status)
+      : c.json({ error: "calibrations unavailable" }, 500);
+
+  app.get("/api/calibrations", async (c) => {
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json({ calibrations: await calibrations.list() });
+    } catch (error) {
+      return calibrationFailure(c, error);
+    }
+  });
+
+  app.post("/api/calibrations", async (c) => {
+    const rejected = guardWrite(c, true);
+    if (rejected) return rejected;
+    let input: unknown;
+    try {
+      input = await readBoundedJson(c.req.raw, MAX_CALIBRATION_BODY_BYTES);
+    } catch {
+      return c.json({ error: "invalid calibration" }, 400);
+    }
+    try {
+      const entry = await calibrations.add(input);
+      const all = await calibrations.list();
+      await withDatabase(db, () => syncCalibrations(db, all));
+      return c.json(entry, 201);
+    } catch (error) {
+      return calibrationFailure(c, error);
+    }
+  });
+
+  app.delete("/api/calibrations/:id", async (c) => {
+    const rejected = guardWrite(c, false);
+    if (rejected) return rejected;
+    try {
+      const kept = await calibrations.remove(c.req.param("id"));
+      await withDatabase(db, () => syncCalibrations(db, kept));
+      return c.body(null, 204);
+    } catch (error) {
+      return calibrationFailure(c, error);
     }
   });
 
