@@ -22,6 +22,7 @@ import {
   defaultSubscriptionsConfigPath,
   defaultViewsDirectory,
 } from "./options";
+import { readQuotas } from "./quotas/service";
 import { isSessionId, parseSessionsQuery, readSession, readSessions } from "./sessions/service";
 import { readSummary, summaryPeriod } from "./summary/service";
 import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
@@ -42,6 +43,8 @@ export interface AppOptions {
   subscriptions?: { configPath?: string };
   /** Manual quota readings; tests pass a temporary file instead of the real data home. */
   calibrations?: { path?: string };
+  /** Clock for quota windows and pace projection; tests pin it. */
+  quotas?: { now?: () => number };
 }
 
 /** Explorer bodies are small: 2 dimensions, 4 metrics, at most 10 filters of 50 values. */
@@ -248,6 +251,29 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       return c.body(null, 204);
     } catch (error) {
       return calibrationFailure(c, error);
+    }
+  });
+
+  const quotasNow = options.quotas?.now ?? (() => Date.now());
+
+  app.get("/api/quotas", async (c) => {
+    const now = quotasNow();
+    const period = summaryPeriod(new URL(c.req.url).searchParams, now);
+    if (!period) return c.json({ error: "invalid quotas period" }, 400);
+    c.header("Cache-Control", "no-store");
+    // A corrupt or unsafe calibrations file degrades to quotas without readings, never a failure.
+    const readings = await calibrations.list().catch(() => null);
+    try {
+      return c.json(
+        await readQuotas(db, {
+          period,
+          configPath: subscriptionsConfigPath,
+          calibrations: readings,
+          now,
+        }),
+      );
+    } catch {
+      return c.json({ error: "quotas unavailable" }, 500);
     }
   });
 
