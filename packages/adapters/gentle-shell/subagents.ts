@@ -8,7 +8,7 @@ import {
 } from "@omt/core";
 import { parsePi, piSessionId } from "../pi";
 
-export const GENTLE_SHELL_SUBAGENT_ADAPTER_VERSION = "gentle-shell-subagent/1";
+export const GENTLE_SHELL_SUBAGENT_ADAPTER_VERSION = "gentle-shell-subagent/2";
 /** Marks child transcripts, including those without a task record (role unknown, spec §6.1). */
 export const GENTLE_SHELL_SUBAGENT_FORMAT = "pi-subagent/3";
 const DOCUMENT_FORMAT = "omt-gentle-subagent/1";

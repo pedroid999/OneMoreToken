@@ -1,5 +1,11 @@
 import { readFileSync } from "node:fs";
-import { ISSUE_MESSAGES, NormalizedBatchSchema, type ParseContext, recordId } from "@omt/core";
+import {
+  ISSUE_MESSAGES,
+  NormalizedBatchSchema,
+  type ParseContext,
+  profileSnapshot,
+  recordId,
+} from "@omt/core";
 import { describe, expect, it } from "vitest";
 import { GENTLE_SHELL_ADAPTER_VERSION, parseGentleShell } from "../gentle-shell";
 import { PI_ADAPTER_VERSION, parsePi } from "./index";
@@ -128,8 +134,10 @@ describe("Pi v3 metrics-only parser", () => {
     );
     expect(gentle.source.agent).toBe("gentle-shell");
     expect(gentle.source.id).not.toBe(batch.source.id);
-    expect(PI_ADAPTER_VERSION).toBe("pi-v3/2");
-    expect(GENTLE_SHELL_ADAPTER_VERSION).toBe("gentle-shell-v3/2");
+    expect(PI_ADAPTER_VERSION).toBe("pi-v3/3");
+    expect(GENTLE_SHELL_ADAPTER_VERSION).toBe("gentle-shell-v3/3");
+    expect(batch.profiles).toBeUndefined();
+    expect(batch.profileBindings).toBeUndefined();
     expect(batch).toMatchSnapshot();
   });
 
@@ -378,5 +386,76 @@ describe("Pi v3 metrics-only parser", () => {
     expect(batch.turns[0]?.id).toBe(
       recordId(batch.source.id, "turn", JSON.stringify(["session", "call"])),
     );
+  });
+
+  it("binds session profiles through ancestry until a clear, a newer bind or an unknown entry", () => {
+    const profile = (id: string, parentId: string, data: object, customType?: string) =>
+      event(id, parentId, {
+        type: "custom",
+        customType: customType ?? "gentle-pi.session-profile/v1",
+        data,
+      });
+    const bindAlpha = {
+      kind: "bind",
+      origin: "user",
+      name: "alpha",
+      modelProfiles: {
+        orchestrator: { model: "synthetic/model-a", thinking: "high", note: "PRIVATE_SENTINEL" },
+        worker: "synthetic/model-b",
+      },
+    };
+    const bindBeta = {
+      kind: "bind",
+      origin: "global",
+      name: "beta",
+      modelProfiles: { orchestrator: { model: "synthetic/model-c", effort: "low" } },
+    };
+    const batch = parse(
+      header,
+      event("m", null, { type: "model_change", provider: "synthetic", modelId: "model-a" }),
+      { ...profile("bind-a", "m", bindAlpha), timestamp: "2026-01-01T00:00:05.000Z" },
+      event("user", "bind-a", { type: "message", message: { role: "user", content: [] } }),
+      event("a1", "user", assistant()),
+      // Sibling branch of the clear: still bound to alpha through its ancestry.
+      event("branch", "a1", assistant()),
+      profile("clear", "a1", { kind: "clear" }),
+      event("a2", "clear", assistant()),
+      profile("bind-b", "a2", bindBeta),
+      event("a3", "bind-b", assistant()),
+      event("u3", "a3", usageEntry("summary")),
+      profile("future", "u3", bindAlpha, "gentle-pi.session-profile/v2"),
+      event("a4", "future", assistant()),
+      profile("invalid", "a1", { kind: "bind", name: "", modelProfiles: {} }),
+      event("a5", "invalid", assistant()),
+      profile("other", "a3", { kind: "bind", name: "PRIVATE_SENTINEL" }, "profile"),
+      event("a6", "other", assistant()),
+    );
+    const alpha = profileSnapshot(
+      "alpha",
+      {
+        orchestrator: { model: "synthetic/model-a", thinking: "high" },
+        worker: "synthetic/model-b",
+      },
+      "2026-01-01T00:00:05.000Z",
+    );
+    const beta = profileSnapshot("beta", bindBeta.modelProfiles, timestamp);
+    if (!alpha || !beta) throw new Error("Expected snapshots");
+    expect(alpha.definition.roles).toEqual({
+      orchestrator: { model: "synthetic/model-a", thinking: "high" },
+      worker: { model: "synthetic/model-b" },
+    });
+    expect(batch.profiles).toEqual([alpha, beta]);
+    const turn = (eventId: string) =>
+      recordId(batch.source.id, "turn", JSON.stringify(["session", eventId]));
+    expect(batch.profileBindings).toEqual([
+      { turn_id: turn("user"), profile_hash: alpha.hash },
+      { turn_id: turn("a1"), profile_hash: alpha.hash },
+      { turn_id: turn("branch"), profile_hash: alpha.hash },
+      { turn_id: turn("a3"), profile_hash: beta.hash },
+      { turn_id: turn("u3"), profile_hash: beta.hash },
+      { turn_id: turn("a6"), profile_hash: beta.hash },
+    ]);
+    expect(JSON.stringify(batch)).not.toContain("PRIVATE_SENTINEL");
+    expect(JSON.stringify(batch)).not.toContain('"origin"');
   });
 });

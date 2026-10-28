@@ -1,5 +1,6 @@
 import { PricingFileSchema } from "../data/files";
 import type { Database } from "../db/database";
+import { upsertProfiles } from "../profiles/snapshot";
 import { TABLE_SCHEMAS } from "../schema/tables";
 import {
   createSource,
@@ -48,7 +49,7 @@ export async function persistBatch(
   try {
     const sessions = "SELECT id FROM sessions WHERE source_id = $1";
     const turns = `SELECT id FROM turns WHERE session_id IN (${sessions})`;
-    for (const table of ["usage", "tool_calls", "turn_profile"]) {
+    for (const table of ["usage", "tool_calls", "turn_profile", "turn_profile_bindings"]) {
       await db.run(`DELETE FROM ${table} WHERE turn_id IN (${turns})`, [sourceId]);
     }
     // Runs belong to the child source, so re-ingesting a parent never drops its children's runs.
@@ -66,6 +67,7 @@ export async function persistBatch(
       ["tool_calls", batch.toolCalls],
       ["ingest_issues", batch.issues],
       ["subagent_runs", batch.subagentRuns ?? []],
+      ["turn_profile_bindings", batch.profileBindings ?? []],
     ] as const) {
       const columns = Object.keys(TABLE_SCHEMAS[table].shape);
       const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");
@@ -77,6 +79,7 @@ export async function persistBatch(
         );
       }
     }
+    await upsertProfiles(db, batch.profiles ?? []);
     await db.run(
       `INSERT INTO ingest_checkpoints (source_id, content_hash, adapter_version, ingested_at, pricing_hash)
        VALUES ($1, $2, $3, $4, $5)

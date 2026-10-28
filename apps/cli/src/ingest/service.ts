@@ -18,7 +18,16 @@ import {
   readGentleTaskRecord,
   readOpenCodeSessions,
 } from "@omt/adapters";
-import { type Database, ingestSource, loadPricing, type SourceParser } from "@omt/core";
+import {
+  type Database,
+  defaultProfilesPath,
+  ingestSource,
+  loadPricing,
+  readProfilesFile,
+  recomputeProfileAttribution,
+  type SourceParser,
+  upsertProfiles,
+} from "@omt/core";
 import { withDatabase } from "../db-queue";
 import { type IngestAgent, type IngestOptions, validateIngestOptions } from "../ingest-options";
 
@@ -57,6 +66,9 @@ export interface IngestServiceOptions {
   now?: () => string;
   fs?: IngestFileSystem;
   parsers?: Partial<Record<IngestAgent, SourceParser>>;
+  /** gentle-shell `profiles.json` (D5). Defaults to the real file only with default discovery
+   * (no `roots`), so tests never read the home directory. */
+  profilesPath?: string;
 }
 const adapters = {
   "claude-code": { version: CLAUDE_CODE_ADAPTER_VERSION, parse: parseClaudeCode },
@@ -111,6 +123,11 @@ export function ingestSessions(
         : (options.roots ?? defaultIngestRoots()).filter(
             (root) => !request.agent || root.agent === request.agent,
           );
+    // Read-only profile snapshots (L10); a missing or invalid file only means none are added.
+    const profilesPath =
+      options.profilesPath ?? (options.roots === undefined ? defaultProfilesPath() : undefined);
+    if (profilesPath)
+      await upsertProfiles(db, readProfilesFile(profilesPath, ingestedAt).snapshots);
     const visited = new Set<string>();
     const failure = () => {
       metrics.failed++;
@@ -297,6 +314,8 @@ export function ingestSessions(
         failure();
       }
     }
+    // Derived: rewritten in full after every ingest, whatever changed (L10).
+    await recomputeProfileAttribution(db);
     return metrics;
   });
 }

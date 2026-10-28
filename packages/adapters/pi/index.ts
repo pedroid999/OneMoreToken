@@ -5,13 +5,17 @@ import {
   type IssueCode,
   type NormalizedBatch,
   NormalizedBatchSchema,
+  type ProfileSnapshot,
+  profileSnapshot,
   recordId,
+  SESSION_PROFILE_CUSTOM_TYPE,
+  SESSION_PROFILE_FAMILY,
   type SourceParser,
   TurnSchema,
   UsageSchema,
 } from "@omt/core";
 
-export const PI_ADAPTER_VERSION = "pi-v3/2";
+export const PI_ADAPTER_VERSION = "pi-v3/3";
 /** Stored id of a Pi session: lets other sources link to it without reading it. */
 export const piSessionId = (sourceId: string, nativeSession: string) =>
   recordId(sourceId, "session", JSON.stringify([nativeSession]));
@@ -32,7 +36,13 @@ const tokenSchema = UsageSchema.pick({
   cache_write_tokens: true,
 });
 type Event = { data: ObjectRecord; id: string; parent: string | null; line: number };
-type State = { model: string | null; provider: string | null; effort: string | null };
+/** `profile`: hash of the session profile bound on this branch (spec §6.2), null when none. */
+type State = {
+  model: string | null;
+  provider: string | null;
+  effort: string | null;
+  profile: string | null;
+};
 const USAGE_TYPES = ["message", "compaction", "usage"];
 
 /** Pure Pi v3 metrics (spec §3, §4, §10). All uniquely recorded API calls count,
@@ -40,6 +50,8 @@ const USAGE_TYPES = ["message", "compaction", "usage"];
  * Fixtures reconstruct verified shapes; branch fixtures assert tree semantics only.
  * `compaction` entries are compaction turns with inherited state and optional summary usage;
  * `usage` entries count whatever their `kind`. Summaries, details and system messages are never read.
+ * `gentle-pi.session-profile/v1` entries bind a profile to the following turns of their branch until a
+ * `clear`, a newer bind or an invalid/unknown-version family entry; only the snapshot whitelist is kept.
  */
 export const parsePi: SourceParser = (content, context) => {
   const source = createSource(context);
@@ -121,6 +133,20 @@ export const parsePi: SourceParser = (content, context) => {
       issue("invalid_record", event.line);
     }
   }
+  const profiles = new Map<string, ProfileSnapshot>();
+  /** Undefined: not a family entry, so the inherited binding stays. */
+  const binding = (data: ObjectRecord): string | null | undefined => {
+    if (data.type !== "custom" || typeof data.customType !== "string") return undefined;
+    if (!data.customType.startsWith(SESSION_PROFILE_FAMILY)) return undefined;
+    const payload = object(data.data);
+    if (data.customType !== SESSION_PROFILE_CUSTOM_TYPE || payload.kind !== "bind") return null;
+    const seenAt = new Date(iso(data.timestamp) ?? started).toISOString();
+    const snapshot = profileSnapshot(payload.name, payload.modelProfiles, seenAt);
+    if (!snapshot) return null;
+    const seen = profiles.get(snapshot.hash);
+    if (!seen || snapshot.first_seen_at < seen.first_seen_at) profiles.set(snapshot.hash, snapshot);
+    return snapshot.hash;
+  };
   const states = new Map<string, State>();
   const stateFor = (event: Event): State => {
     const path: Event[] = [];
@@ -139,9 +165,11 @@ export const parsePi: SourceParser = (content, context) => {
       model: null,
       provider: null,
       effort: null,
+      profile: null,
     };
     for (const node of path.reverse()) {
       const data = node.data;
+      const bound = binding(data);
       const message = data.type === "message" ? object(data.message) : {};
       state = {
         model: text(data.type === "model_change" ? data.modelId : message.model) ?? state.model,
@@ -151,6 +179,7 @@ export const parsePi: SourceParser = (content, context) => {
           text(
             data.type === "thinking_level_change" ? data.thinkingLevel : message.thinkingLevel,
           ) ?? state.effort,
+        profile: bound === undefined ? state.profile : bound,
       };
       states.set(node.id, state);
     }
@@ -175,10 +204,11 @@ export const parsePi: SourceParser = (content, context) => {
       continue;
     }
     // Usage entries carry their own attribution and never change the inherited state.
+    const inherited = stateFor(event);
     const state =
       data.type === "usage"
         ? { model: text(data.model), provider: text(data.provider), effort: null }
-        : stateFor(event);
+        : { model: inherited.model, provider: inherited.provider, effort: inherited.effort };
     const turn = {
       id: id("turn", event.id),
       session_id: sessionId,
@@ -191,6 +221,10 @@ export const parsePi: SourceParser = (content, context) => {
     };
     batch.turns.push(turn);
     turns.set(event.id, turn);
+    if (inherited.profile) {
+      batch.profileBindings ??= [];
+      batch.profileBindings.push({ turn_id: turn.id, profile_hash: inherited.profile });
+    }
     if (data.type === "message" && message.role !== "assistant") continue;
     if (data.type === "compaction" && data.usage === undefined) continue;
     const raw = object(data.type === "message" ? message.usage : data.usage);
@@ -221,6 +255,7 @@ export const parsePi: SourceParser = (content, context) => {
           : null,
     });
   }
+  if (profiles.size > 0) batch.profiles = [...profiles.values()];
   // Join through ancestry, not a global tool-id map that could cross branches.
   for (const event of events.values()) {
     const message = object(event.data.message);

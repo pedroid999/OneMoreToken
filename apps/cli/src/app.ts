@@ -22,6 +22,7 @@ import {
   defaultSubscriptionsConfigPath,
   defaultViewsDirectory,
 } from "./options";
+import { readProfiles } from "./profiles/service";
 import { readQuotas } from "./quotas/service";
 import { isSessionId, parseSessionsQuery, readSession, readSessions } from "./sessions/service";
 import { readSummary, summaryPeriod } from "./summary/service";
@@ -274,6 +275,17 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       );
     } catch {
       return c.json({ error: "quotas unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/profiles", async (c) => {
+    const period = summaryPeriod(new URL(c.req.url).searchParams, quotasNow());
+    if (!period) return c.json({ error: "invalid profiles period" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readProfiles(db, { period, configPath: subscriptionsConfigPath }));
+    } catch {
+      return c.json({ error: "profiles unavailable" }, 500);
     }
   });
 

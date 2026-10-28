@@ -172,7 +172,8 @@ describe("gentle-shell subagent parser", () => {
       path: parentPath,
       adapterVersion: GENTLE_SHELL_ADAPTER_VERSION,
     });
-    expect(GENTLE_SHELL_ADAPTER_VERSION).toBe("gentle-shell-v3/2");
+    expect(GENTLE_SHELL_ADAPTER_VERSION).toBe("gentle-shell-v3/3");
+    expect(GENTLE_SHELL_SUBAGENT_ADAPTER_VERSION).toBe("gentle-shell-subagent/2");
     expect(parent.sessions[0]).toMatchObject({
       id: parentId,
       format_version: "3",

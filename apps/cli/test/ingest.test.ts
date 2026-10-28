@@ -491,9 +491,9 @@ describe("POST /api/ingest for gentle-shell subagents", () => {
          FROM sessions s JOIN sources c ON c.id = s.source_id ORDER BY s.started_at`,
       ),
     ).toEqual([
-      { format_version: "3", root: true, adapter_version: "gentle-shell-v3/2" },
-      { format_version: "pi-subagent/3", root: false, adapter_version: "gentle-shell-subagent/1" },
-      { format_version: "pi-subagent/3", root: true, adapter_version: "gentle-shell-subagent/1" },
+      { format_version: "3", root: true, adapter_version: "gentle-shell-v3/3" },
+      { format_version: "pi-subagent/3", root: false, adapter_version: "gentle-shell-subagent/2" },
+      { format_version: "pi-subagent/3", root: true, adapter_version: "gentle-shell-subagent/2" },
     ]);
     const snapshot = await stored();
     const all = await Promise.all(
@@ -542,6 +542,122 @@ describe("POST /api/ingest for gentle-shell subagents", () => {
     ]);
     await writeFile(join(tasks, "broken.json"), "PRIVATE_SENTINEL {");
     expect(await (await post(gentle())).json()).toEqual(metrics(3, 0, 3, 1, 1));
+  });
+
+  it("snapshots profiles.json read-only and recomputes attribution after each ingest", async () => {
+    await install();
+    const profilesPath = join(root, ".gentle-shell", "config", "gentle-ai", "profiles.json");
+    await mkdir(join(profilesPath, ".."), { recursive: true });
+    await writeFile(
+      profilesPath,
+      JSON.stringify({
+        kind: "gentle-pi.agent_model_profiles",
+        version: 1,
+        active: "PRIVATE_SENTINEL",
+        profiles: {
+          solo: {
+            orchestrator: { model: "synthetic/model-a", apiKey: "PRIVATE_SENTINEL" },
+            "gentle-ai-worker": { model: "synthetic/model-a", thinking: "high" },
+          },
+        },
+      }),
+    );
+    const ingest = () =>
+      post(
+        app({
+          ingest: {
+            roots: defaultIngestRoots(root, { XDG_DATA_HOME: join(root, "absent") }),
+            now: () => now,
+            profilesPath,
+          },
+        }),
+      );
+    const attribution = () =>
+      db.all(
+        `SELECT s.format_version, s.parent_session_id IS NULL AS root, p.name, tp.attribution,
+           count(t.id) AS turns
+         FROM turns t JOIN sessions s ON s.id = t.session_id
+         LEFT JOIN turn_profile tp ON tp.turn_id = t.id
+         LEFT JOIN profiles p ON p.hash = tp.profile_hash
+         WHERE t.model IS NOT NULL
+         GROUP BY ALL ORDER BY ALL`,
+      );
+    const before = await fingerprint();
+    expect(await (await ingest()).json()).toEqual(metrics(3));
+    expect(await fingerprint()).toEqual(before);
+    expect(
+      await db.all(
+        `SELECT name, strftime(first_seen_at AT TIME ZONE 'UTC', '%Y-%m-%dT%H:%M:%S.%gZ') AS seen,
+           CAST(definition AS VARCHAR) AS definition FROM profiles`,
+      ),
+    ).toEqual([
+      {
+        name: "solo",
+        seen: now,
+        definition: JSON.stringify({
+          name: "solo",
+          roles: {
+            "gentle-ai-worker": { model: "synthetic/model-a", thinking: "high" },
+            orchestrator: { model: "synthetic/model-a" },
+          },
+        }),
+      },
+    ]);
+    // The orphan child has role unknown: never estimated.
+    expect(await attribution()).toEqual([
+      { format_version: "3", root: true, name: "solo", attribution: "estimated", turns: 1n },
+      {
+        format_version: "pi-subagent/3",
+        root: false,
+        name: "solo",
+        attribution: "estimated",
+        turns: 4n,
+      },
+      { format_version: "pi-subagent/3", root: true, name: null, attribution: null, turns: 1n },
+    ]);
+
+    // A bind in the parent makes it and its linked child exact; unchanged children are skipped.
+    const bind = JSON.stringify({
+      type: "custom",
+      customType: "gentle-pi.session-profile/v1",
+      id: "bind",
+      parentId: null,
+      timestamp: "2026-01-01T00:00:00.500Z",
+      data: {
+        kind: "bind",
+        origin: "user",
+        name: "bound",
+        modelProfiles: { orchestrator: { model: "synthetic/model-a", thinking: "high" } },
+      },
+    });
+    const [head, ...rest] = (await readFile(join(fixtures, "parents", parentFile), "utf8"))
+      .trimEnd()
+      .split("\n");
+    await writeFile(
+      join(agentDir(), "sessions", parentFile),
+      [
+        head,
+        bind,
+        ...rest.map((line) => line.replace('"parentId":null', '"parentId":"bind"')),
+      ].join("\n"),
+    );
+    expect(await (await ingest()).json()).toEqual(metrics(3, 1, 2));
+    expect(await attribution()).toEqual([
+      { format_version: "3", root: true, name: "bound", attribution: "exact", turns: 1n },
+      {
+        format_version: "pi-subagent/3",
+        root: false,
+        name: "bound",
+        attribution: "exact",
+        turns: 4n,
+      },
+      { format_version: "pi-subagent/3", root: true, name: null, attribution: null, turns: 1n },
+    ]);
+    const stored = JSON.stringify(
+      await db.all("SELECT CAST(definition AS VARCHAR) AS d FROM profiles"),
+    );
+    expect(stored).not.toContain("PRIVATE_SENTINEL");
+    expect(stored).not.toContain("origin");
   });
 
   it("does not follow a symlinked subagent directory", async () => {

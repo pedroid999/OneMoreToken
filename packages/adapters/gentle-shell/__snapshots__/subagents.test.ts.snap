@@ -19,7 +19,7 @@ exports[`gentle-shell subagent parser > links the child to its parent and sums t
     },
   ],
   "source": {
-    "adapter_version": "gentle-shell-subagent/1",
+    "adapter_version": "gentle-shell-subagent/2",
     "agent": "gentle-shell",
     "id": "c566c92900d816fc49d5f76634246f3fce90cbf41338ba8a5a90c156fc113b0f",
     "last_ingested_at": "2026-01-05T00:00:00.000Z",

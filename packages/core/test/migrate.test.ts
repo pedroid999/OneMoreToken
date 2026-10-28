@@ -22,6 +22,7 @@ const SPEC_TABLES = [
   "commits",
   "ingest_issues",
   "subscription_rules",
+  "turn_profile_bindings",
 ];
 
 const scratch: string[] = [];
@@ -46,7 +47,7 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(await tableNames(db)).toEqual(
       [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
     );
@@ -62,7 +63,7 @@ describe("migrate", () => {
     const ledger = await db.all<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5]);
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5, 6]);
     db.close();
   });
 
@@ -74,11 +75,14 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     await migrate(db, dir);
     expect(await tableNames(db)).toEqual(
-      [...SPEC_TABLES.filter((t) => t !== "subscription_rules"), "schema_migrations"].sort(),
+      [
+        ...SPEC_TABLES.filter((t) => t !== "subscription_rules" && t !== "turn_profile_bindings"),
+        "schema_migrations",
+      ].sort(),
     );
     await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
     const before = await db.all("SELECT * FROM sources");
-    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5]);
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5, 6]);
     expect(await db.all("SELECT * FROM sources")).toEqual(before);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
     db.close();
@@ -95,7 +99,7 @@ describe("migrate", () => {
     await db.run("INSERT INTO usage VALUES ('turn', 1, 2, 3, 4, 0, 5)");
     const usage = await db.all("SELECT * FROM usage");
     const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4, 5]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4, 5, 6]);
     expect(await db.all("SELECT * FROM usage")).toEqual(usage);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
       checkpoints.map((row) => ({ ...row, pricing_hash: null })),
@@ -118,7 +122,7 @@ describe("migrate", () => {
     );
     const sessions = await db.all("SELECT * FROM sessions");
     const turns = await db.all("SELECT * FROM turns");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4, 5]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4, 5, 6]);
     expect(await db.all("SELECT * FROM sessions")).toEqual(
       sessions.map((row) => ({ ...row, parent_session_id: null })),
     );

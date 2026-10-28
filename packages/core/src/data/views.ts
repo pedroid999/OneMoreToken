@@ -23,6 +23,7 @@ export const EXPLORER_DIMENSIONS = [
   "provider",
   "subscription",
   "profile",
+  "attribution",
   "role",
   "effort",
   "repo",
@@ -32,8 +33,6 @@ export const EXPLORER_DIMENSIONS = [
   "hourOfDay",
   "dayOfWeek",
 ] as const;
-/** Accepted but grouped as null until phase 3 attributes them; never guessed. */
-export const UNAVAILABLE_DIMENSIONS = ["subscription", "profile", "role"] as const;
 
 export const ExplorerMetricSchema = z.enum(EXPLORER_METRICS);
 export const ExplorerDimensionSchema = z.enum(EXPLORER_DIMENSIONS);

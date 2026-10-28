@@ -88,7 +88,6 @@ const pivot = () => ({
       computedCostUnknown: 1,
     },
   ],
-  unavailable: [],
   overlapping: false,
   truncated: false,
 });
@@ -186,25 +185,19 @@ describe("Explorer pivot (S6-S9, L16/L17)", () => {
     ).toBeTruthy();
   });
 
-  it("surfaces unavailable dimensions, tool overlap and truncation", async () => {
+  it("surfaces tool overlap and truncation", async () => {
     fetcher.mockImplementation(async (input, init) => {
       const url = String(input);
       if (url === "/api/views") return json({ views: storedViews, invalid: [] });
       posts.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
       return json({
         ...pivot(),
-        unavailable: ["subscription"],
         overlapping: true,
         truncated: true,
       });
     });
     await view();
     await screen.findByRole("table", { name: en.explorer.dataTable });
-    expect(
-      screen.getByText(
-        en.explorer.unavailable.replace("{{list}}", en.explorer.dimension.subscription),
-      ),
-    ).toBeTruthy();
     expect(screen.getByText(en.explorer.overlapping)).toBeTruthy();
     expect(screen.getByText(en.explorer.truncated)).toBeTruthy();
   });
@@ -287,6 +280,26 @@ describe("Explorer configuration (S6-S9, S11)", () => {
         .getByRole("button", { name: en.explorer.dimension.tool })
         .getAttribute("disabled"),
     ).not.toBeNull();
+  });
+
+  it("offers subscription, profile, attribution and role as plain dimensions (S10)", async () => {
+    await view();
+    await screen.findByRole("table", { name: en.explorer.dataTable });
+    const dimensions = screen.getByRole("group", { name: en.explorer.dimensions });
+    // Default day + agent is at the 2-dimension cap: free one slot first.
+    fireEvent.click(within(dimensions).getByRole("button", { name: en.explorer.dimension.day }));
+    for (const name of ["subscription", "profile", "role"] as const) {
+      expect(
+        within(dimensions)
+          .getByRole("button", { name: en.explorer.dimension[name] })
+          .getAttribute("disabled"),
+      ).toBeNull();
+    }
+    fireEvent.click(
+      within(dimensions).getByRole("button", { name: en.explorer.dimension.attribution }),
+    );
+    expect(new URLSearchParams(window.location.search).get("dimensions")).toBe("agent,attribution");
+    expect(screen.queryByText(/phase 3/)).toBeNull();
   });
 
   it("combines filters and keeps them in the URL (S9)", async () => {
