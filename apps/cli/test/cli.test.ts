@@ -89,6 +89,7 @@ describe("omt ingest client", () => {
     expect(c.out()).toContain("--url <url>");
     expect(c.out()).toContain("claude-code, gentle-shell, pi or opencode");
     expect(c.out()).toContain("~/.local/share}/opencode/");
+    expect(c.out()).toContain("~/.gentle-shell/agent/gentle-agents/ (subagents)");
     expect(c.err()).toBe("");
   });
 

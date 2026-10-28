@@ -12,6 +12,9 @@ import {
 } from "@omt/core";
 
 export const PI_ADAPTER_VERSION = "pi-v3/2";
+/** Stored id of a Pi session: lets other sources link to it without reading it. */
+export const piSessionId = (sourceId: string, nativeSession: string) =>
+  recordId(sourceId, "session", JSON.stringify([nativeSession]));
 type ObjectRecord = Record<string, unknown>;
 const object = (value: unknown): ObjectRecord =>
   value !== null && typeof value === "object" && !Array.isArray(value)
@@ -77,9 +80,9 @@ export const parsePi: SourceParser = (content, context) => {
     issue(!nativeSession ? "invalid_record" : "missing_timestamp", first?.line ?? 1);
     return finish();
   }
-  const id = (kind: "session" | "turn" | "tool", ...parts: string[]) =>
+  const id = (kind: "turn" | "tool", ...parts: string[]) =>
     recordId(source.id, kind, JSON.stringify([nativeSession, ...parts]));
-  const sessionId = id("session");
+  const sessionId = piSessionId(source.id, nativeSession);
   batch.sessions.push({
     id: sessionId,
     source_id: source.id,

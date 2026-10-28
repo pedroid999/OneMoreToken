@@ -7,6 +7,7 @@ import {
   type Row,
   SessionSchema,
   SourceSchema,
+  SubagentRunSchema,
   ToolCallSchema,
   TurnSchema,
   UsageSchema,
@@ -86,6 +87,8 @@ export const NormalizedBatchSchema = z
     issues: z.array(
       IngestIssueSchema.extend({ location: z.string().regex(/^\d+$/).nullable() }).strict(),
     ),
+    /** Child-owned: one run per child session of this source, keyed by the child session id. */
+    subagentRuns: z.array(SubagentRunSchema.strict()).optional(),
   })
   .superRefine((batch, ctx) => {
     const { source } = batch;
@@ -108,6 +111,7 @@ export const NormalizedBatchSchema = z
     unique(batch.usage.map((row) => row.turn_id));
     unique(batch.toolCalls.map((row) => row.id));
     unique(batch.issues.map((row) => row.id));
+    unique((batch.subagentRuns ?? []).map((row) => row.id));
     for (const row of batch.sessions) {
       if (
         !row.id.startsWith(`${source.id}:session:`) ||
@@ -121,6 +125,10 @@ export const NormalizedBatchSchema = z
       if (!row.id.startsWith(`${source.id}:turn:`) || !sessions.has(row.session_id)) reject();
     }
     for (const row of batch.usage) if (!turns.has(row.turn_id)) reject();
+    for (const row of batch.subagentRuns ?? []) {
+      const child = batch.sessions.find((session) => session.id === row.id);
+      if (!child || child.parent_session_id !== row.parent_session_id) reject();
+    }
     for (const row of batch.toolCalls) {
       if (!row.id.startsWith(`${source.id}:tool:`) || !turns.has(row.turn_id)) reject();
     }

@@ -51,7 +51,8 @@ export async function persistBatch(
     for (const table of ["usage", "tool_calls", "turn_profile"]) {
       await db.run(`DELETE FROM ${table} WHERE turn_id IN (${turns})`, [sourceId]);
     }
-    await db.run(`DELETE FROM subagent_runs WHERE parent_session_id IN (${sessions})`, [sourceId]);
+    // Runs belong to the child source, so re-ingesting a parent never drops its children's runs.
+    await db.run(`DELETE FROM subagent_runs WHERE id IN (${sessions})`, [sourceId]);
     await db.run(`DELETE FROM turns WHERE session_id IN (${sessions})`, [sourceId]);
     for (const table of ["sessions", "ingest_issues"]) {
       await db.run(`DELETE FROM ${table} WHERE source_id = $1`, [sourceId]);
@@ -64,6 +65,7 @@ export async function persistBatch(
       ["usage", batch.usage],
       ["tool_calls", batch.toolCalls],
       ["ingest_issues", batch.issues],
+      ["subagent_runs", batch.subagentRuns ?? []],
     ] as const) {
       const columns = Object.keys(TABLE_SCHEMAS[table].shape);
       const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");

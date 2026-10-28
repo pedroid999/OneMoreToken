@@ -1,0 +1,3 @@
+{"type":"session","version":3,"id":"parent-session","timestamp":"2026-01-01T00:00:00.000Z","cwd":"/synthetic/project"}
+{"type":"message","id":"p-user","parentId":null,"timestamp":"2026-01-01T00:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"PRIVATE_SENTINEL"}]}}
+{"type":"message","id":"p-assistant","parentId":"p-user","timestamp":"2026-01-01T00:00:02.000Z","message":{"role":"assistant","provider":"synthetic","model":"model-a","content":[{"type":"text","text":"PRIVATE_SENTINEL"}],"usage":{"input":7,"output":3,"cacheRead":0,"cacheWrite":0,"totalTokens":10,"cost":{"total":0.1}}}}
