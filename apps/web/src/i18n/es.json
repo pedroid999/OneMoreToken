@@ -182,7 +182,7 @@
       "title": "Desviación histórica",
       "line": "{{window}}: {{text}}",
       "mean": "desviación media absoluta de {{value}}",
-      "needsMore": "necesita al menos 2 lecturas"
+      "needsMore": "necesita más lecturas (2 si el límite es estimado, 1 si el plan lo publica)"
     },
     "pp": "{{value}} pp"
   },

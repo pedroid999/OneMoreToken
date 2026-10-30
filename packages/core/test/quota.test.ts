@@ -281,6 +281,29 @@ describe("computeQuotas calibration", () => {
   });
 });
 
+describe("computeQuotas deviation with a plan limit", () => {
+  it("predicts every reading from the plan limit, so one reading already has a deviation", () => {
+    const report = computeQuotas(
+      input({
+        turns: [turn("go", "2026-10-10T10:00:00Z", { reportedCostUsd: 3 })],
+        calibrations: [
+          {
+            id: "a",
+            subscriptionId: "go",
+            windowKind: "five_hours",
+            observedAt: "2026-10-10T11:00:00Z",
+            observedPct: 20,
+          },
+        ],
+      }),
+    );
+    const five = kind(report, "go", "five_hours");
+    expect(five.limitSource).toBe("plan");
+    expect(five.calibration.readings[0]).toMatchObject({ predictedPct: 25, deltaPct: 5 });
+    expect(five.calibration.meanAbsoluteDeviationPct).toBe(5);
+  });
+});
+
 describe("computeQuotas pace projection", () => {
   const at = (now: string, cost: number) =>
     kind(

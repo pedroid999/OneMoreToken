@@ -168,7 +168,7 @@ describe("overLimitRows", () => {
 });
 
 describe("deviationOf", () => {
-  it("needs at least 2 readings", () => {
+  it("needs more readings while the server reports no mean deviation", () => {
     expect(deviationOf(kind())).toEqual({ kind: "needsMore", readings: 0 });
     expect(
       deviationOf(

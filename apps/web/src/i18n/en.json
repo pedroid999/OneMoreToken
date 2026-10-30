@@ -182,7 +182,7 @@
       "title": "Historical deviation",
       "line": "{{window}}: {{text}}",
       "mean": "mean absolute deviation {{value}}",
-      "needsMore": "needs at least 2 readings"
+      "needsMore": "needs more readings (2 when the limit is estimated, 1 when the plan publishes it)"
     },
     "pp": "{{value}} pp"
   },

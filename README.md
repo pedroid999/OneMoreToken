@@ -192,7 +192,7 @@ Quota is attributed by subscription, not by agent (spec §4, §5): several agent
 - `planId` must exist in `data/subscriptions.json`; `label`, `startedAt` and `endedAt` (inclusive ISO dates) are optional. Each `match` rule names a turn `provider` and optionally an `agent`. A turn belongs to the first subscription, in file order, with a matching rule inside its dates; turns without a match count as pay-as-you-go API usage.
 - Attribution is computed at query time, so editing the file never needs a re-ingest. A missing file means no subscriptions; an invalid one is reported and ignored.
 - Calibrations are the % you read in each provider console (Claude `/usage`, Codex `/status`, the OpenCode Go dashboard). Enter them in the Burn rate view; they are stored in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json` (mode 0600, written atomically, never through a symlink and never over a file that fails validation), since nothing else can rebuild them.
-- Every window figure is an estimate (spec §5.3). Plans without a public limit get one from the median limit implied by your calibrations; the deviation shown is leave-one-out (each reading predicted from the others), as a mean absolute deviation in percentage points, and needs at least two readings.
+- Every window figure is an estimate (spec §5.3). Plans without a public limit get one from the median limit implied by your calibrations; the deviation shown is leave-one-out (each reading predicted from the others), as a mean absolute deviation in percentage points. It needs two readings when the limit is estimated, and one when the plan publishes it.
 
 API (Host guard, `Cache-Control: no-store`; writes need a loopback Origin and JSON):
 

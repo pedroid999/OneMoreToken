@@ -76,7 +76,8 @@ export interface QuotaWindowKindReport {
   overLimitUsd: number;
   calibration: {
     readings: CalibrationReading[];
-    /** Mean absolute deviation in percentage points; null with fewer than 2 readings. */
+    /** Mean absolute deviation in percentage points; null without a predicted reading (a calibrated
+     * limit needs at least 2 readings, a plan limit 1). */
     meanAbsoluteDeviationPct: number | null;
   };
 }
@@ -262,15 +263,15 @@ function kindReport(
   }
 
   const calibrationReadings: CalibrationReading[] = readings.map((reading, index) => {
-    let predictionLimit: number | null = null;
-    if (readings.length >= 2) {
-      predictionLimit =
-        planLimit ??
-        median(
-          readings.flatMap((other, j) =>
-            j === index || other.implied === null ? [] : [other.implied],
-          ),
-        );
+    // A plan limit predicts every reading on its own; a calibrated one is predicted leave-one-out,
+    // so it needs at least one other reading.
+    let predictionLimit: number | null = planLimit;
+    if (predictionLimit === null && readings.length >= 2) {
+      predictionLimit = median(
+        readings.flatMap((other, j) =>
+          j === index || other.implied === null ? [] : [other.implied],
+        ),
+      );
     }
     const predictedPct = predictionLimit === null ? null : (reading.value / predictionLimit) * 100;
     return {
