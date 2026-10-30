@@ -281,26 +281,52 @@ describe("computeQuotas calibration", () => {
   });
 });
 
-describe("computeQuotas deviation with a plan limit", () => {
-  it("predicts every reading from the plan limit, so one reading already has a deviation", () => {
-    const report = computeQuotas(
-      input({
-        turns: [turn("go", "2026-10-10T10:00:00Z", { reportedCostUsd: 3 })],
-        calibrations: [
-          {
-            id: "a",
-            subscriptionId: "go",
-            windowKind: "five_hours",
-            observedAt: "2026-10-10T11:00:00Z",
-            observedPct: 20,
-          },
-        ],
-      }),
+describe("computeQuotas calibration of a plan limit", () => {
+  const goReading = (id: string, observedAt: string, observedPct: number): CalibrationEntry => ({
+    id,
+    subscriptionId: "go",
+    windowKind: "five_hours",
+    observedAt,
+    observedPct,
+  });
+  const turns = [turn("go", "2026-10-10T10:00:00Z", { reportedCostUsd: 3 })];
+
+  it("keeps the published limit while there are no readings", () => {
+    const five = kind(computeQuotas(input({ turns })), "go", "five_hours");
+    expect(five).toMatchObject({ limitSource: "plan", limitUsd: 12 });
+    expect(five.windows[0]?.estimatedPct).toBe(25);
+  });
+
+  it("lets readings correct a published limit the agents' cost does not match", () => {
+    const five = kind(
+      computeQuotas(input({ turns, calibrations: [goReading("a", "2026-10-10T11:00:00Z", 50)] })),
+      "go",
+      "five_hours",
     );
-    const five = kind(report, "go", "five_hours");
-    expect(five.limitSource).toBe("plan");
-    expect(five.calibration.readings[0]).toMatchObject({ predictedPct: 25, deltaPct: 5 });
-    expect(five.calibration.meanAbsoluteDeviationPct).toBe(5);
+    expect(five).toMatchObject({ limitSource: "calibrated", limitUsd: 6 });
+    expect(five.windows[0]).toMatchObject({ estimatedPct: 50, limitSource: "calibrated" });
+    // A lone reading is predicted from the published limit: its deviation is still honest.
+    expect(five.calibration.readings[0]).toMatchObject({ predictedPct: 25, deltaPct: -25 });
+    expect(five.calibration.meanAbsoluteDeviationPct).toBe(25);
+  });
+
+  it("predicts each reading from the other readings once there are two", () => {
+    const five = kind(
+      computeQuotas(
+        input({
+          turns: [...turns, turn("go", "2026-10-10T12:00:00Z", { reportedCostUsd: 1 })],
+          calibrations: [
+            goReading("a", "2026-10-10T11:00:00Z", 50),
+            goReading("b", "2026-10-10T13:00:00Z", 40),
+          ],
+        }),
+      ),
+      "go",
+      "five_hours",
+    );
+    expect(five.limitUsd).toBe(8);
+    expect(five.calibration.readings.map((r) => r.predictedPct)).toEqual([30, 100 * (4 / 6)]);
+    expect(five.calibration.meanAbsoluteDeviationPct).toBeCloseTo((20 + (400 / 6 - 40)) / 2);
   });
 });
 

@@ -222,10 +222,12 @@ function kindReport(
 
   const planLimit = limit.unit === "estimated" ? null : limit.value;
   const implied = readings.flatMap((r) => (r.implied === null ? [] : [r.implied]));
-  const calibrated = planLimit === null ? median(implied) : null;
-  const limitValue = planLimit ?? calibrated;
+  // Readings win over a published limit too: agents' costs need not match what the provider bills,
+  // and the readings measure the limit in the same units we count (spec §5.3).
+  const calibrated = median(implied);
+  const limitValue = calibrated ?? planLimit;
   const limitSource: LimitSource =
-    planLimit !== null ? "plan" : calibrated !== null ? "calibrated" : "unknown";
+    calibrated !== null ? "calibrated" : planLimit !== null ? "plan" : "unknown";
   const limitUsd = unit === "tokens" ? null : limitValue;
   const limitTokens = unit === "tokens" ? limitValue : null;
 
@@ -263,16 +265,14 @@ function kindReport(
   }
 
   const calibrationReadings: CalibrationReading[] = readings.map((reading, index) => {
-    // A plan limit predicts every reading on its own; a calibrated one is predicted leave-one-out,
-    // so it needs at least one other reading.
-    let predictionLimit: number | null = planLimit;
-    if (predictionLimit === null && readings.length >= 2) {
-      predictionLimit = median(
+    // Leave-one-out: each reading is predicted from the others, falling back to the published
+    // limit, so a reading never predicts itself.
+    const predictionLimit =
+      median(
         readings.flatMap((other, j) =>
           j === index || other.implied === null ? [] : [other.implied],
         ),
-      );
-    }
+      ) ?? planLimit;
     const predictedPct = predictionLimit === null ? null : (reading.value / predictionLimit) * 100;
     return {
       id: reading.entry.id,
