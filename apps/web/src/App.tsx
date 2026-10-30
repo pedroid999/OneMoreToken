@@ -6,6 +6,7 @@ import { StatusBar } from "./components/StatusBar";
 import { type AppEnvironment, PreferencesProvider, usePreferences } from "./prefs/usePreferences";
 import { matchRoute, navigate, ROUTES, type Route, useLocation } from "./router";
 import { AboutView } from "./views/AboutView";
+import { BurnRateView } from "./views/BurnRateView";
 import { ExplorerView } from "./views/ExplorerView";
 import { SessionView } from "./views/SessionView";
 import { SettingsView } from "./views/SettingsView";
@@ -138,6 +139,8 @@ function View({ route }: { route: Route }) {
   switch (route.id) {
     case "summary":
       return <SummaryView />;
+    case "burnRate":
+      return <BurnRateView />;
     case "explorer":
       return <ExplorerView />;
     case "session":

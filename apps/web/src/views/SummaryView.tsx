@@ -5,7 +5,9 @@ import { EmptyState } from "../components/EmptyState";
 import { Panel } from "../components/Panel";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { formatNumber, formatTokensM, formatUsd } from "../i18n/format";
+import { QuotaStatus } from "../quotas/QuotaStatus";
 import { useLocation } from "../router";
+import "../styles/quotas.css";
 import "../styles/summary.css";
 
 const DAY = 86400000;
@@ -88,6 +90,7 @@ export function SummaryView() {
           </p>
         ) : null}
       </div>
+      <QuotaStatus from={from} to={to} language={language} />
       <Panel
         title={t("summary.activity")}
         status={failed ? "error" : !data ? "loading" : data.turns === 0 ? "empty" : "ready"}
@@ -216,7 +219,6 @@ export function SummaryView() {
           ) : null}
         </>
       ) : null}
-      <p className="summary__muted">{t("summary.quotaUnavailable")}</p>
     </>
   );
 }

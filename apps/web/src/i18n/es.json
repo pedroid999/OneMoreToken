@@ -57,13 +57,134 @@
     "dayUtc": "Día · UTC",
     "totalTokens": "Tokens · M",
     "issues": "Incidencias de ingesta almacenadas (todos los periodos): {{warning}} avisos, {{error}} errores, {{critical}} críticas. Puede que falten datos.",
-    "quotaUnavailable": "Cuota no disponible hasta la fase 3; todavía sin atribución de suscripciones.",
     "error": "Resumen no disponible. Comprueba la API local y el periodo (ambos límites ISO, máximo 366 días UTC) y reintenta.",
     "empty": {
       "title": "No hay sesiones en este periodo",
       "body": "Ingiere las sesiones locales de tus agentes por primera vez o elige otro periodo para ver la actividad existente.",
       "command": "pnpm omt ingest"
+    },
+    "quota": {
+      "title": "Estado de cuotas",
+      "open": "Abrir Burn rate",
+      "noWindow": "Ninguna ventana abierta",
+      "missing": "Todavía no hay suscripciones configuradas: Burn rate explica cómo hacerlo.",
+      "empty": "Tu fichero de suscripciones no tiene suscripciones.",
+      "invalid": "El fichero de suscripciones no es válido: Burn rate explica cómo corregirlo.",
+      "error": "Estado de cuotas no disponible. Revisa la API local y vuelve a intentarlo."
     }
+  },
+  "burnRate": {
+    "title": "Burn rate",
+    "intro": "Ventanas de cuota por suscripción. Los proveedores no publican el uso exacto: toda cifra de ventana es una estimación, ajustada con tus lecturas de calibración.",
+    "error": "Cuotas no disponibles. Revisa la API local y el periodo (ambos límites ISO, como máximo 366 días UTC) y vuelve a intentarlo.",
+    "config": {
+      "missing": {
+        "title": "No hay suscripciones configuradas",
+        "body": "Crea {{path}} con version 1 y una entrada por suscripción (id, planId, startedAt y los proveedores que cubre en match). Los planes y límites vienen de data/subscriptions.json. Después recarga esta vista."
+      },
+      "empty": {
+        "title": "Tu configuración no tiene suscripciones",
+        "body": "Añade tus planes a {{path}} para ver sus ventanas de cuota."
+      },
+      "invalid": "Tu fichero de suscripciones no es válido ({{path}}). Comprueba que es JSON válido con version 1 y que cada planId existe en data/subscriptions.json, y vuelve a intentarlo."
+    },
+    "plan": "Plan {{plan}} · proveedor {{provider}}",
+    "limitSource": {
+      "plan": "límite del plan",
+      "calibrated": "límite estimado a partir de tus lecturas",
+      "unknown": "límite desconocido: añade una lectura de calibración"
+    },
+    "windows": {
+      "title": "Ventanas",
+      "noCurrent": "Ninguna ventana abierta ahora"
+    },
+    "gauge": {
+      "resets": "Se reinicia {{date}}"
+    },
+    "pace": {
+      "projected": "Límite alcanzado hacia {{time}} al ritmo actual",
+      "notBeforeReset": "No se alcanza antes del reinicio al ritmo actual",
+      "reached": "Límite alcanzado",
+      "unavailable": "Sin proyección: no hay ventana abierta o el límite es desconocido"
+    },
+    "timeline": {
+      "title": "Ventanas de 5 horas",
+      "chartName": "Ventanas de 5 horas coloreadas por consumo estimado",
+      "time": "Hora",
+      "level": "Consumo",
+      "start": "Inicio",
+      "end": "Fin",
+      "consumption": "Consumo estimado",
+      "unknown": "Desconocido",
+      "empty": "No hay ventanas de 5 horas en este periodo."
+    },
+    "level": {
+      "ok": "Menos del 70 %",
+      "warn": "Del 70 % al 100 %",
+      "over": "En el límite o por encima",
+      "unknown": "Límite desconocido"
+    },
+    "value": {
+      "title": "Valor extraído",
+      "apiEquivalent": "Equivalente API",
+      "paid": "Precio de la suscripción, prorrateado",
+      "ratio": "{{ratio}}× lo que pagas",
+      "priceUnknown": "Precio desconocido",
+      "unpriced_one": "{{formatted}} turno sin precio no se cuenta",
+      "unpriced_other": "{{formatted}} turnos sin precio no se cuentan"
+    },
+    "overLimit": {
+      "title": "Uso por encima del límite",
+      "window": "Ventana",
+      "period": "Periodo",
+      "amount": "Por encima del límite · USD",
+      "range": "{{from}} → {{to}}",
+      "empty": "Ningún uso por encima del límite en este periodo."
+    },
+    "calibration": {
+      "title": "Calibración",
+      "intro": "Introduce el % que muestra la consola de tu proveedor. Las lecturas ajustan el límite estimado y miden cuánto se desvía la estimación.",
+      "windowKind": "Ventana",
+      "observedPct": "% observado",
+      "observedAt": "Fecha y hora",
+      "note": "Nota (opcional)",
+      "submit": "Guardar calibración",
+      "saved": "Calibración guardada",
+      "deleted": "Calibración borrada",
+      "invalid": "El fichero de calibraciones no se puede leer o no es seguro ({{path}}): las cuotas se calculan sin lecturas y no se puede guardar nada. Corrige o mueve el fichero y vuelve a intentarlo.",
+      "errors": {
+        "windowKind": "Elige una de las ventanas de este plan.",
+        "observedPct": "Introduce un número de 0 a 100.",
+        "observedAt": "Introduce una fecha y hora válidas.",
+        "observedAtFuture": "La lectura no puede estar en el futuro.",
+        "note": "La nota admite como máximo 200 caracteres.",
+        "rejected": "El servidor ha rechazado la lectura. Revisa la ventana y los valores frente a tu fichero de suscripciones.",
+        "storage": "El fichero de calibraciones no se puede leer o no es seguro; no se ha guardado nada. Revisa {{path}} y vuelve a intentarlo.",
+        "failed": "La calibración no se ha guardado. Revisa la API local y vuelve a intentarlo."
+      }
+    },
+    "readings": {
+      "title": "Lecturas",
+      "empty": "Todavía no hay lecturas.",
+      "error": "Lecturas no disponibles. Revisa la API local y vuelve a intentarlo.",
+      "window": "Ventana",
+      "observedAt": "Observada el",
+      "observed": "Observado",
+      "predicted": "Previsto",
+      "delta": "Desviación",
+      "note": "Nota",
+      "actions": "Acciones",
+      "delete": "Borrar",
+      "deleteNamed": "Borrar la lectura de {{window}} del {{time}}",
+      "deleteError": "La calibración no se ha borrado. Revisa la API local y vuelve a intentarlo."
+    },
+    "deviation": {
+      "title": "Desviación histórica",
+      "line": "{{window}}: {{text}}",
+      "mean": "desviación media absoluta de {{value}}",
+      "needsMore": "necesita al menos 2 lecturas"
+    },
+    "pp": "{{value}} pp"
   },
   "explorer": {
     "title": "Explorador",

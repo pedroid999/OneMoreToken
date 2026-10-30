@@ -33,7 +33,7 @@ describe("router (spec §8.1: the URL reflects the state)", () => {
     const phases = Object.fromEntries(ROUTES.map((r) => [r.id, r.phase]));
     expect(phases).toEqual({
       summary: undefined,
-      burnRate: 3,
+      burnRate: undefined,
       explorer: undefined,
       session: undefined,
       profiles: 3,
