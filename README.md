@@ -174,12 +174,44 @@ The Session view backend (spec §7.1): metrics only, no message content. Both en
 - `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked. Commit diffs arrive in phase 4.
 - Unsafe aggregates or database failures on either endpoint return 500 `{"error":"sessions unavailable"}`.
 
+### Subscriptions, quotas and calibrations
+
+Quota is attributed by subscription, not by agent (spec §4, §5): several agents can drain the same plan. Plans and their limits live in `data/subscriptions.json`; which plans **you** pay for lives in a local file, never in the repository: `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
+
+```json
+{
+  "version": 1,
+  "subscriptions": [
+    { "id": "claude-pro", "planId": "claude-pro", "match": [{ "provider": "claude-bridge" }, { "provider": "anthropic", "agent": "claude-code" }] },
+    { "id": "chatgpt-plus", "planId": "chatgpt-plus", "match": [{ "provider": "openai-codex" }] },
+    { "id": "opencode-go", "planId": "opencode-go", "startedAt": "2026-10-01", "match": [{ "provider": "opencode-go" }] }
+  ]
+}
+```
+
+- `planId` must exist in `data/subscriptions.json`; `label`, `startedAt` and `endedAt` (inclusive ISO dates) are optional. Each `match` rule names a turn `provider` and optionally an `agent`. A turn belongs to the first subscription, in file order, with a matching rule inside its dates; turns without a match count as pay-as-you-go API usage.
+- Attribution is computed at query time, so editing the file never needs a re-ingest. A missing file means no subscriptions; an invalid one is reported and ignored.
+- Calibrations are the % you read in each provider console (Claude `/usage`, Codex `/status`, the OpenCode Go dashboard). Enter them in the Burn rate view; they are stored in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json` (mode 0600, written atomically, never through a symlink and never over a file that fails validation), since nothing else can rebuild them.
+- Every window figure is an estimate (spec §5.3). Plans without a public limit get one from the median limit implied by your calibrations; the deviation shown is leave-one-out (each reading predicted from the others), as a mean absolute deviation in percentage points, and needs at least two readings.
+
+API (Host guard, `Cache-Control: no-store`; writes need a loopback Origin and JSON):
+
+- `GET /api/quotas?from&to` (Summary period rules) returns `config.status` (`ok` | `missing` | `invalid`), `calibrations.status` (`ok` | `invalid`) and, per subscription, windows with usage, limit and its source (`plan` | `calibrated` | `unknown`), estimated %, reset, pace projection, over-limit usage, calibration deviation and the extracted API-equivalent value. Computed cost follows the Summary's current-pricing rule. Errors: 400 `invalid quotas period`, 500 `quotas unavailable`.
+- `GET /api/calibrations`, `POST /api/calibrations` (`subscriptionId`, `windowKind` of that plan, `observedPct` 0–100, `observedAt` not in the future, optional `note` ≤ 200 characters; returns 201) and `DELETE /api/calibrations/:id` (204). Errors: 400 `invalid calibration`, 404 `calibration not found`, 409 `unsafe calibration storage`.
+
+### gentle-shell profiles
+
+Profiles (spec §6) are read from `~/.gentle-shell/config/gentle-ai/profiles.json` at ingest time, read-only, keeping only each role's model and effort. Every distinct definition is a versioned snapshot (sha256 of its canonical JSON). Turns are attributed per turn: **exact** when the session recorded a `gentle-pi.session-profile/v1` binding (child sessions inherit it), otherwise **estimated** when the turn's role, model and effort match exactly one profile; ambiguous turns stay unattributed. Roles are `orchestrator` for gentle-shell sessions and the subagent's agent name for child sessions.
+
+`GET /api/profiles?from&to` returns, per profile, cost and tokens total and per session, role and effort breakdowns, subscriptions drained, snapshot versions and exact vs estimated shares, plus the unattributed gentle-shell turns. Errors: 400 `invalid profiles period`, 500 `profiles unavailable`. The Explorer can group by `subscription`, `profile`, `attribution` and `role`.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
 - The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
 - Agent session files are only read, never modified.
 - Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`.
+- Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
 
 ### Keep your Claude Code history
 

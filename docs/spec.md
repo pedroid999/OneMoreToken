@@ -80,7 +80,7 @@ Cada agente tiene un adaptador independiente que lee su almacenamiento local y e
 | Pi | `~/.pi/agent` | **Verificar** | Fase 1 |
 | OpenCode (actual) | `${XDG_DATA_HOME:-~/.local/share}/opencode/opencode.db` | SQLite | Fase 2 |
 | OpenCode (legacy) | `~/.local/share/opencode/storage/` (`session/`, `message/`, `part/`, `session_diff/`) | JSON sueltos | Fase 2 |
-| Codex CLI | `~/.codex/sessions/` | JSONL (**verificar**) | Fase 3 |
+| Codex CLI | `~/.codex/sessions/` | JSONL (**verificar**) | Fase 4 |
 
 ### Requisitos comunes
 
