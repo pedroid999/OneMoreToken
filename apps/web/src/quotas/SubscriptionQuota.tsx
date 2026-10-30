@@ -7,7 +7,14 @@ import type { Language } from "../i18n/i18n";
 import { CalibrationSection } from "./CalibrationSection";
 import type { CalibrationEntry, QuotaSubscriptionReport, QuotaWindowKindReport } from "./contract";
 import { QuotaTimeline } from "./QuotaTimeline";
-import { overLimitRows, paceOf, quotaTimeFormat, usageLevel, windowKey } from "./state";
+import {
+  overLimitRows,
+  paceOf,
+  type QuotasPeriod,
+  quotaTimeFormat,
+  usageLevel,
+  windowKey,
+} from "./state";
 
 export interface SubscriptionQuotaProps {
   subscription: QuotaSubscriptionReport;
@@ -16,6 +23,7 @@ export interface SubscriptionQuotaProps {
   onRetryEntries: () => void;
   calibrationsInvalid: boolean;
   language: Language;
+  period: QuotasPeriod;
   onChanged: () => void;
 }
 
@@ -131,7 +139,7 @@ export function SubscriptionQuota(props: SubscriptionQuotaProps) {
       </Section>
       {fiveHours ? (
         <Section title={t("burnRate.timeline.title")}>
-          <QuotaTimeline report={fiveHours} language={language} />
+          <QuotaTimeline report={fiveHours} language={language} period={props.period} />
         </Section>
       ) : null}
       <Section title={t("burnRate.value.title")}>

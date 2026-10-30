@@ -226,6 +226,8 @@ export function timelineSpec(labels: {
   consumption: string;
   levels: Record<UsageLevel, string>;
   colors: Record<UsageLevel, string>;
+  /** The selected period: the x axis spans it, so a lone window keeps its real width. */
+  period?: QuotasPeriod;
 }): Record<string, unknown> {
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v6.json",
@@ -234,7 +236,20 @@ export function timelineSpec(labels: {
     height: 64,
     mark: { type: "rect", cornerRadius: 2 },
     encoding: {
-      x: { field: "start", type: "temporal", title: labels.time },
+      x: {
+        field: "start",
+        type: "temporal",
+        title: labels.time,
+        ...(labels.period
+          ? {
+              // domainMin/Max, not domain: x and x2 share the scale and a fixed domain conflicts.
+              scale: {
+                domainMin: Date.parse(labels.period.from),
+                domainMax: Date.parse(labels.period.to),
+              },
+            }
+          : {}),
+      },
       x2: { field: "end" },
       color: {
         field: "levelLabel",

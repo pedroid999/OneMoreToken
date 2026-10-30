@@ -9,6 +9,7 @@ import type { SemanticColor } from "../theme/tokens";
 import { THEME_TOKENS } from "../theme/tokens";
 import type { QuotaWindowKindReport } from "./contract";
 import {
+  type QuotasPeriod,
   quotaTimeFormat,
   timelineRows,
   timelineSpec,
@@ -31,9 +32,11 @@ const LEVEL_COLORS: Record<UsageLevel, SemanticColor> = {
 export function QuotaTimeline({
   report,
   language,
+  period,
 }: {
   report: QuotaWindowKindReport | undefined;
   language: Language;
+  period: QuotasPeriod;
 }) {
   const { t } = useTranslation();
   const { resolvedTheme } = usePreferences();
@@ -56,6 +59,7 @@ export function QuotaTimeline({
   const specText = JSON.stringify(
     timelineSpec({
       time: t("burnRate.timeline.time"),
+      period,
       level: t("burnRate.timeline.level"),
       consumption: t("burnRate.timeline.consumption"),
       levels,

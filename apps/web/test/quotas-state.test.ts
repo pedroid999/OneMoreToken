@@ -7,6 +7,7 @@ import {
   parseQuotasPeriod,
   quotasRequest,
   timelineRows,
+  timelineSpec,
   toLocalInput,
   usageLevel,
   validateCalibration,
@@ -290,6 +291,27 @@ describe("validateCalibration", () => {
         observedAt: "burnRate.calibration.errors.observedAt",
         note: "burnRate.calibration.errors.note",
       },
+    });
+  });
+});
+
+describe("timelineSpec", () => {
+  const labels = {
+    time: "Time",
+    level: "Level",
+    consumption: "Consumption",
+    levels: { ok: "ok", warn: "warn", over: "over", unknown: "unknown" },
+    colors: { ok: "#1", warn: "#2", over: "#3", unknown: "#4" },
+  };
+
+  it("spans the selected period, so one window never fills the whole chart", () => {
+    const spec = timelineSpec({
+      ...labels,
+      period: { from: "2026-10-23T00:00:00.000Z", to: "2026-10-30T00:00:00.000Z" },
+    }) as { encoding: { x: { scale?: Record<string, number> } } };
+    expect(spec.encoding.x.scale).toEqual({
+      domainMin: Date.parse("2026-10-23T00:00:00.000Z"),
+      domainMax: Date.parse("2026-10-30T00:00:00.000Z"),
     });
   });
 });

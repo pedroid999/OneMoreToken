@@ -80,6 +80,7 @@ export function BurnRateView() {
         onRetryEntries={calibrations.reload}
         calibrationsInvalid={data.calibrations.status === "invalid"}
         language={language}
+        period={period}
         onChanged={changed}
       />
     ));
