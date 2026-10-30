@@ -472,5 +472,86 @@
   },
   "a11y": {
     "skipToContent": "Skip to content"
+  },
+  "profiles": {
+    "title": "Profiles",
+    "intro": "Cost and tokens of each gentle-shell profile, attributed per turn. Estimated attribution infers the profile from the models used by each role.",
+    "error": "Cannot load the profiles. Check that pnpm omt serve is running, then retry.",
+    "empty": {
+      "title": "No gentle-shell turns in this period",
+      "body": "Profiles come from gentle-shell sessions. Ingest them, or pick a longer period.",
+      "command": "pnpm omt ingest"
+    },
+    "noProfiles": {
+      "title": "No profile matched the turns of this period",
+      "body": "gentle-shell turns were found, but none could be attributed to a profile."
+    },
+    "column": {
+      "profile": "Profile",
+      "attribution": "Attribution",
+      "sessions": "Sessions",
+      "turns": "Turns",
+      "tokens": "Tokens",
+      "tokensPerSession": "Tokens per session",
+      "computedCost": "Computed cost",
+      "costPerSession": "Cost per session",
+      "reportedCost": "Reported cost"
+    },
+    "noCost": "no price",
+    "unknown": "unknown",
+    "attribution": {
+      "exactShare": "{{share}} exact",
+      "none": "not attributed"
+    },
+    "comparison": {
+      "title": "Comparison",
+      "table": "Profiles compared",
+      "chartName": "Computed cost and tokens per profile",
+      "cost": "Computed cost",
+      "tokens": "Tokens"
+    },
+    "versions": {
+      "title": "Versions used",
+      "item": "first seen {{date}}"
+    },
+    "roles": {
+      "title": "Roles",
+      "role": "Role",
+      "agent": "Agent",
+      "category": {
+        "orchestrator": "Orchestrator",
+        "explorer": "Explorer",
+        "writer": "Writer",
+        "verifier": "Verifier",
+        "reviewer": "Reviewer",
+        "other": "Other role",
+        "unknown": "Unknown role",
+        "outside": "Outside gentle-shell"
+      }
+    },
+    "efforts": {
+      "title": "Effort",
+      "model": "Model",
+      "effort": "Effort",
+      "none": "default",
+      "compared": "same model, different effort"
+    },
+    "subscriptions": {
+      "title": "Subscriptions drained",
+      "subscription": "Subscription",
+      "payAsYouGo": "Pay-as-you-go API"
+    },
+    "sessions": {
+      "title": "Sessions",
+      "started": "Started · UTC",
+      "session": "Session",
+      "unknownStart": "unknown start",
+      "agent": "Agent"
+    },
+    "unattributed": {
+      "title": "Unattributed gentle-shell turns",
+      "body": "These turns matched no profile, or several at once, so they count in no profile above.",
+      "none": "Every gentle-shell turn of this period is attributed to a profile."
+    }
   }
 }

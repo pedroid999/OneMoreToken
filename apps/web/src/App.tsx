@@ -8,6 +8,7 @@ import { matchRoute, navigate, ROUTES, type Route, useLocation } from "./router"
 import { AboutView } from "./views/AboutView";
 import { BurnRateView } from "./views/BurnRateView";
 import { ExplorerView } from "./views/ExplorerView";
+import { ProfilesView } from "./views/ProfilesView";
 import { SessionView } from "./views/SessionView";
 import { SettingsView } from "./views/SettingsView";
 import { SummaryView } from "./views/SummaryView";
@@ -145,6 +146,8 @@ function View({ route }: { route: Route }) {
       return <ExplorerView />;
     case "session":
       return <SessionView />;
+    case "profiles":
+      return <ProfilesView />;
     case "settings":
       return <SettingsView />;
     case "about":

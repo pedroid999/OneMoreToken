@@ -472,5 +472,86 @@
   },
   "a11y": {
     "skipToContent": "Saltar al contenido"
+  },
+  "profiles": {
+    "title": "Perfiles",
+    "intro": "Coste y tokens de cada perfil de gentle-shell, atribuidos por turno. La atribución estimada infiere el perfil a partir de los modelos que usa cada rol.",
+    "error": "No se pueden cargar los perfiles. Comprueba que pnpm omt serve está en marcha y reintenta.",
+    "empty": {
+      "title": "No hay turnos de gentle-shell en este periodo",
+      "body": "Los perfiles salen de las sesiones de gentle-shell. Ingiérelas o elige un periodo más largo.",
+      "command": "pnpm omt ingest"
+    },
+    "noProfiles": {
+      "title": "Ningún perfil coincide con los turnos de este periodo",
+      "body": "Hay turnos de gentle-shell, pero ninguno se ha podido atribuir a un perfil."
+    },
+    "column": {
+      "profile": "Perfil",
+      "attribution": "Atribución",
+      "sessions": "Sesiones",
+      "turns": "Turnos",
+      "tokens": "Tokens",
+      "tokensPerSession": "Tokens por sesión",
+      "computedCost": "Coste calculado",
+      "costPerSession": "Coste por sesión",
+      "reportedCost": "Coste reportado"
+    },
+    "noCost": "sin precio",
+    "unknown": "desconocido",
+    "attribution": {
+      "exactShare": "{{share}} exacto",
+      "none": "sin atribuir"
+    },
+    "comparison": {
+      "title": "Comparativa",
+      "table": "Perfiles comparados",
+      "chartName": "Coste calculado y tokens por perfil",
+      "cost": "Coste calculado",
+      "tokens": "Tokens"
+    },
+    "versions": {
+      "title": "Versiones usadas",
+      "item": "vista por primera vez el {{date}}"
+    },
+    "roles": {
+      "title": "Roles",
+      "role": "Rol",
+      "agent": "Agente",
+      "category": {
+        "orchestrator": "Orquestador",
+        "explorer": "Explorer",
+        "writer": "Writer",
+        "verifier": "Verifier",
+        "reviewer": "Reviewer",
+        "other": "Otro rol",
+        "unknown": "Rol desconocido",
+        "outside": "Fuera de gentle-shell"
+      }
+    },
+    "efforts": {
+      "title": "Esfuerzo",
+      "model": "Modelo",
+      "effort": "Esfuerzo",
+      "none": "por defecto",
+      "compared": "mismo modelo, distinto esfuerzo"
+    },
+    "subscriptions": {
+      "title": "Suscripciones que drena",
+      "subscription": "Suscripción",
+      "payAsYouGo": "API de pago por uso"
+    },
+    "sessions": {
+      "title": "Sesiones",
+      "started": "Inicio · UTC",
+      "session": "Sesión",
+      "unknownStart": "inicio desconocido",
+      "agent": "Agente"
+    },
+    "unattributed": {
+      "title": "Turnos de gentle-shell sin atribuir",
+      "body": "Estos turnos no coinciden con ningún perfil, o con varios a la vez, así que no cuentan en ningún perfil de arriba.",
+      "none": "Todos los turnos de gentle-shell de este periodo están atribuidos a un perfil."
+    }
   }
 }

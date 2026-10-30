@@ -29,7 +29,7 @@ export const ROUTES: readonly Route[] = [
   { id: "burnRate", path: "/burn-rate", labelKey: "nav.burnRate" },
   { id: "explorer", path: "/explorer", labelKey: "nav.explorer" },
   { id: "session", path: "/session", labelKey: "nav.session" },
-  { id: "profiles", path: "/profiles", labelKey: "nav.profiles", phase: 3 },
+  { id: "profiles", path: "/profiles", labelKey: "nav.profiles" },
   { id: "agents", path: "/agents", labelKey: "nav.agents", phase: 2 },
   { id: "git", path: "/git", labelKey: "nav.git", phase: 4 },
   { id: "tools", path: "/tools", labelKey: "nav.tools", phase: 2 },

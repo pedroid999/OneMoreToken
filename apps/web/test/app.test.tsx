@@ -131,6 +131,12 @@ describe("app shell", () => {
     expect(screen.queryByText("Esta vista llega en la fase 3.")).toBeNull();
   });
 
+  it("shows Profiles at its route instead of the upcoming placeholder", async () => {
+    await renderApp("/profiles");
+    expect(screen.getByRole("heading", { level: 1, name: es.profiles.title })).toBeTruthy();
+    expect(screen.queryByText("Esta vista llega en la fase 3.")).toBeNull();
+  });
+
   it("shows the session view at its route without counting the session id as a filter", async () => {
     const id = `${"a".repeat(64)}:session:${"b".repeat(64)}`;
     await renderApp(`/session?agent=pi&id=${id}`);
