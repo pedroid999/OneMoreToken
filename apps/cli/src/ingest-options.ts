@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import { TurnSchema } from "@omt/core";
 import type { ParseResult } from "./options";
 
-export type IngestAgent = "claude-code" | "gentle-shell" | "pi" | "opencode";
+export type IngestAgent = "claude-code" | "gentle-shell" | "pi" | "opencode" | "codex";
 export interface IngestOptions {
   agent?: IngestAgent;
   path?: string;
@@ -23,7 +23,7 @@ export function validateIngestOptions(input: unknown): IngestOptions | null {
   if ("agent" in value) {
     if (
       typeof value.agent !== "string" ||
-      !["claude-code", "gentle-shell", "pi", "opencode"].includes(value.agent)
+      !["claude-code", "gentle-shell", "pi", "opencode", "codex"].includes(value.agent)
     )
       return null;
     options.agent = value.agent as IngestAgent;

@@ -403,6 +403,7 @@ describe("POST /api/ingest for OpenCode", () => {
       "gentle-shell",
       "pi",
       "opencode",
+      "codex",
     ]);
   });
 });
@@ -671,5 +672,73 @@ describe("POST /api/ingest for gentle-shell subagents", () => {
     await rm(children, { recursive: true });
     await symlink(join(root, "elsewhere"), children);
     expect(await (await post(gentle())).json()).toEqual(metrics(1));
+  });
+});
+
+describe("POST /api/ingest for Codex", () => {
+  const fixtures = fileURLToPath(
+    new URL("../../../packages/adapters/codex/fixtures/", import.meta.url),
+  );
+  const codex = () => app({ ingest: { roots: [{ agent: "codex", path: root }], now: () => now } });
+  const parentName = "rollout-2026-10-20T09-00-00-thread-main.jsonl";
+  const childName = "rollout-2026-10-20T09-00-08-thread-child.jsonl";
+  async function install(withParent = true) {
+    const day = join(root, "2026", "10", "20");
+    await mkdir(day, { recursive: true });
+    if (withParent)
+      await writeFile(join(day, parentName), await readFile(join(fixtures, "rollout.jsonl")));
+    await writeFile(join(day, childName), await readFile(join(fixtures, "subagent.jsonl")));
+    return day;
+  }
+  const sessions = () =>
+    db.all(
+      `SELECT s.format_version, s.parent_session_id IS NULL AS root, c.adapter_version
+       FROM sessions s JOIN sources c ON c.id = s.source_id ORDER BY s.started_at`,
+    );
+
+  it("ingests rollouts read-only, links subagent threads and skips unchanged files", async () => {
+    await install();
+    const before = await readdir(root, { recursive: true });
+    const first = await post(codex());
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual(metrics(2, 2, 0, 0, 2));
+    expect(await readdir(root, { recursive: true })).toEqual(before);
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/1" },
+      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/1" },
+    ]);
+    expect(await db.all("SELECT role, provider, effort FROM subagent_runs")).toEqual([
+      { role: "explorer", provider: "openai", effort: "high" },
+    ]);
+    const text = JSON.stringify(await stored(), (_key, value) =>
+      typeof value === "bigint" ? String(value) : value,
+    );
+    for (const secret of ["PRIVATE", "SECRET", "Synthetic"]) expect(text).not.toContain(secret);
+    const snapshot = await stored();
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 0, 2));
+    expect(await stored()).toEqual(snapshot);
+  });
+
+  it("links a child when its parent rollout appears later", async () => {
+    const day = await install(false);
+    await post(codex());
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/1" },
+    ]);
+    await writeFile(join(day, parentName), await readFile(join(fixtures, "rollout.jsonl")));
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 2, 0, 0, 2));
+    expect((await sessions()).map((row) => row.root)).toEqual([true, false]);
+  });
+
+  it("discovers Codex under ~/.codex/sessions and accepts --agent codex", async () => {
+    expect(
+      defaultIngestRoots("/synthetic/home", {}).find((entry) => entry.agent === "codex")?.path,
+    ).toBe("/synthetic/home/.codex/sessions");
+    await install();
+    const response = await post(app({ ingest: { roots: [], now: () => now } }), {
+      agent: "codex",
+      path: root,
+    });
+    expect(await response.json()).toEqual(metrics(2, 2, 0, 0, 2));
   });
 });

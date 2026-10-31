@@ -1,4 +1,12 @@
 export { CLAUDE_CODE_ADAPTER_VERSION, parseClaudeCode } from "../claude-code/index";
+export {
+  CODEX_ADAPTER_VERSION,
+  type CodexQuotaReading,
+  codexSessionMeta,
+  createCodexDocument,
+  parseCodex,
+  readCodexQuotaReadings,
+} from "../codex/index";
 export { GENTLE_SHELL_ADAPTER_VERSION, parseGentleShell } from "../gentle-shell/index";
 export {
   createGentleSubagentDocument,
