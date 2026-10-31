@@ -34,7 +34,21 @@ Product intent remains in the Spanish spec; quoted requirements below are author
 - [x] T5 — S6-S8,S10,S11: profiles snapshot + exact/estimated attribution (D5), `/api/profiles`, Explorer dimensions subscription/profile/attribution/role; route: worker (first run hit the provider session limit, resumed in the same tree). RED 25+10 → GREEN, parent `pnpm check` 660 tests. Commit: see L14
 - [x] T6 — S3,S4,S9,S11: Burn rate view (timeline, gauges, projection, value, over-limit, calibration form + deviation), Summary quota status; route: worker (first run cancelled at user pause, relaunched clean). RED → GREEN, parent `pnpm check` 699 tests, web build OK. Commits: see L17
 - [x] T7 — S7,S9,S11: Profiles view; route: worker. RED → GREEN, parent `pnpm check` 725 tests, web build OK. Commits: see L19
-- [ ] T8 — S1: docs (README config, data/README, spec §3 Codex → Phase 4), real-data acceptance with user calibrations, mean deviation documented here. Commit: —
+- [x] T8 — S1: docs (README config, data/README, spec §3 Codex → Phase 4), real-data acceptance with user calibrations, mean deviation documented here. Docs e08dd87 (L20), browser check + fix 7517829 (L22), engine fixes 10452f8 and 47b2807 (L25, L28), deviation in `## Calibration accuracy` (L31).
+
+## Calibration accuracy
+
+Closure S1. Real readings entered in the Burn rate view on 30 Oct 2026; deviation is leave-one-out (each reading predicted from the others, or from the published limit when it is alone), mean absolute deviation in percentage points (pp). Usage amounts and limits are personal metrics and are not recorded here.
+
+| Subscription / window | Readings | Mean deviation | Notes |
+|---|---:|---:|---|
+| Claude Pro / 5 h | 2 | 3.0 pp | Same window and usage, 6 minutes apart. |
+| Claude Pro / weekly | 3 | 0.7 pp | Same usage within 16 minutes: effectively one observation. |
+| OpenCode Go / 5 h | 1 | 0 pp | 0 % observed vs 0 % predicted; uninformative. |
+| OpenCode Go / monthly | 1 | 21.7 pp | Published $60 limit vs agent-reported cost (29 % observed, 7.3 % predicted); the reading now calibrates the limit (L28). |
+| ChatGPT Plus / 5 h, weekly | 2 | n/a | Usage comes from sources not ingested (Codex CLI is Phase 4, ChatGPT web is never visible); excluded. |
+
+Limitations: every reading comes from one afternoon, so the Claude figures measure consistency within one window, not accuracy across windows. The dashboard keeps recomputing the deviation as readings accumulate; re-measure after readings on several days.
 
 ## Log
 
@@ -67,3 +81,5 @@ Product intent remains in the Spanish spec; quoted requirements below are author
 - L27 (evidence, user screenshot): OpenCode Go console "Monthly usage 29% used · Resets in 5d 23h" (≈ 5 Nov), so the cycle anchor on the 5th matches OMT. The earlier 0 % monthly reading contradicts it. OMT sees $4.38 reported cost this cycle (gentle-shell $4.27 + Pi $0.10; OpenCode desktop usage ended 3 Sep), i.e. 7.3 % of $60 vs ≈ $17.4 (29 %) at the provider: OMT under-counts ×4. Computed cost is null for every OpenCode Go model (not in the pricing catalog), so only agent-reported cost counts, and it likely differs from what OpenCode Go bills. Today a plan limit is used as-is and calibrations never adjust it, so this bias would persist.
 - L28 (user decision): "si" to "¿Hacemos que tus lecturas también corrijan la estimación de los planes con límite publicado, como OpenCode Go?". Implemented test-first (RED 2 → GREEN): limit = median implied by readings for every plan (`calibrated`), else the published limit (`plan`), else `unknown`; deviation is leave-one-out with the published limit as fallback for a lone reading. Estimated plans unchanged. README updated; `pnpm check` 729 tests. This amends D3/L8 ("estimated limit" only for estimated plans).
 - L29 (review disposition): user declined whole-branch target sha256:0bcded92…e963 (90 files, 9398 lines). Candidate-scoped.
+- L30 (review disposition): user declined whole-branch target sha256:91abae44…d90e (90 files, 9399 lines) after the L29 doc commit. Candidate-scoped.
+- L31 (T8c acceptance): user corrections answered: "La del 26/10 era del 30/10" (Claude 5 h: 26 Oct 31 % moved to 30 Oct 15:24, the contradictory 11 % deleted) and "Sí, sustitúyela" (OpenCode Go monthly 0 % replaced by 29 % at 30 Oct 15:22, time assumed from the session). Applied through the calibrations API after backing up the file to `backup-pre-phase3-20261030/calibrations-20261031.json`. Resulting deviations recorded in `## Calibration accuracy`; closure S1 met with the stated limitations.
