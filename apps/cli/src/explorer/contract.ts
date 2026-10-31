@@ -1,6 +1,4 @@
 /** Aggregate-only POST /api/explorer/query contract (spec §7.2, L16). See README for semantics. */
-import type { ExplorerDimension } from "@omt/core";
-
 export interface ExplorerColumn {
   name: string;
   /** Cost metrics add `<metric>Known` / `<metric>Unknown` coverage counts after the metrics. */
@@ -12,8 +10,6 @@ export interface ExplorerResponse {
   columns: ExplorerColumn[];
   /** One object per group, keyed by column name, ordered by dimension values (nulls last). */
   rows: Record<string, ExplorerValue>[];
-  /** Requested dimensions that are not attributed yet; grouped as null. */
-  unavailable: ExplorerDimension[];
   /** True when grouping by tool: a turn counts once per distinct tool, so groups overlap. */
   overlapping: boolean;
   /** True when more groups exist than `limit`. */

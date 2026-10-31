@@ -44,7 +44,9 @@ pnpm omt ingest --agent opencode --path /absolute/opencode-data-directory
 pnpm omt ingest --url http://127.0.0.1:7318 --agent claude-code
 ```
 
-The CLI is an HTTP client, not another DuckDB writer (spec §11.1). `--url` accepts only loopback HTTP addresses (`localhost`, `127.0.0.1`, `[::1]`), without credentials, query strings or redirects. By default the server recursively discovers `~/.claude/projects/`, `~/.gentle-shell/agent/sessions/`, `~/.pi/agent/sessions/` and the OpenCode data directory `${XDG_DATA_HOME:-~/.local/share}/opencode/`; absent defaults are ignored. `--agent` limits discovery to one adapter. `--path` requires `--agent` and an absolute directory. Symlink files and directories (including linked-home ancestors) are not followed, avoiding loops and duplicate linked homes.
+The CLI is an HTTP client, not another DuckDB writer (spec §11.1). `--url` accepts only loopback HTTP addresses (`localhost`, `127.0.0.1`, `[::1]`), without credentials, query strings or redirects. By default the server recursively discovers `~/.claude/projects/`, `~/.gentle-shell/agent/sessions/`, gentle-shell subagents in `~/.gentle-shell/agent/gentle-agents/`, `~/.pi/agent/sessions/` and the OpenCode data directory `${XDG_DATA_HOME:-~/.local/share}/opencode/`; absent defaults are ignored. `--agent` limits discovery to one adapter. `--path` requires `--agent` and an absolute directory. Symlink files and directories (including linked-home ancestors) are not followed, avoiding loops and duplicate linked homes.
+
+gentle-shell subagent transcripts (`gentle-agents/sessions/*.jsonl`, Pi v3 format) are ingested as child sessions of the gentle-shell session that launched them. The link comes from the task records in `gentle-agents/tasks/*.json`: only their metadata (task id, agent role, parent session id, `provider/model`, thinking level, linked transcript file and timestamps) is read; prompts, results, labels, working directories and threads are never stored. Each child gets one subagent run (role, model, effort, duration, summed tokens and costs). A transcript without a task record, or whose parent transcript is absent, is still ingested, without a parent or run (role unknown). `--since` selects a subagent transcript when it or one of its task records changed after the timestamp. `--path` always reads plain transcripts.
 
 OpenCode is read from its current SQLite database (`opencode.db`) and its legacy JSON `storage/` directory. The live database is never opened: `opencode.db` and `opencode.db-wal` (never `-shm`) are copied into a private temporary directory, the copy is opened read-only and then removed, so OpenCode's files are neither written nor locked; if the database changes during the copy it is retried once and otherwise counted as a failure. SQLite wins: a legacy session is ingested only when its id is absent from the database (or the database is missing), and an unreadable database skips legacy sessions too, to avoid double counting. Each OpenCode session is one source, counted in `files`; `--since` selects OpenCode sessions by their last update time. Reasoning tokens are stored as output tokens; the reported OpenCode cost is kept next to the computed cost.
 
@@ -172,12 +174,44 @@ The Session view backend (spec §7.1): metrics only, no message content. Both en
 - `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked. Commit diffs arrive in phase 4.
 - Unsafe aggregates or database failures on either endpoint return 500 `{"error":"sessions unavailable"}`.
 
+### Subscriptions, quotas and calibrations
+
+Quota is attributed by subscription, not by agent (spec §4, §5): several agents can drain the same plan. Plans and their limits live in `data/subscriptions.json`; which plans **you** pay for lives in a local file, never in the repository: `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
+
+```json
+{
+  "version": 1,
+  "subscriptions": [
+    { "id": "claude-pro", "planId": "claude-pro", "match": [{ "provider": "claude-bridge" }, { "provider": "anthropic", "agent": "claude-code" }] },
+    { "id": "chatgpt-plus", "planId": "chatgpt-plus", "match": [{ "provider": "openai-codex" }] },
+    { "id": "opencode-go", "planId": "opencode-go", "startedAt": "2026-10-01", "match": [{ "provider": "opencode-go" }] }
+  ]
+}
+```
+
+- `planId` must exist in `data/subscriptions.json`; `label`, `startedAt` and `endedAt` (inclusive ISO dates) are optional. Each `match` rule names a turn `provider` and optionally an `agent`. A turn belongs to the first subscription, in file order, with a matching rule inside its dates; turns without a match count as pay-as-you-go API usage.
+- Attribution is computed at query time, so editing the file never needs a re-ingest. A missing file means no subscriptions; an invalid one is reported and ignored.
+- Calibrations are the % you read in each provider console (Claude `/usage`, Codex `/status`, the OpenCode Go dashboard). Enter them in the Burn rate view; they are stored in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json` (mode 0600, written atomically, never through a symlink and never over a file that fails validation), since nothing else can rebuild them.
+- Every window figure is an estimate (spec §5.3). Your calibrations set the limit: the median of the limits they imply (usage counted by One More Token divided by the observed %), measured in the same units we count. This also corrects plans with a published limit, such as OpenCode Go, whose agent-reported costs need not match what the provider bills; without readings the published limit is used, and without either the limit is unknown. The deviation shown is leave-one-out (each reading predicted from the others, or from the published limit when it is the only one), as a mean absolute deviation in percentage points. It needs two readings when the limit is estimated, and one when the plan publishes it.
+
+API (Host guard, `Cache-Control: no-store`; writes need a loopback Origin and JSON):
+
+- `GET /api/quotas?from&to` (Summary period rules) returns `config.status` (`ok` | `missing` | `invalid`), `calibrations.status` (`ok` | `invalid`) and, per subscription, windows with usage, limit and its source (`calibrated` | `plan` | `unknown`, in that order of preference), estimated %, reset, pace projection, over-limit usage, calibration deviation and the extracted API-equivalent value. Computed cost follows the Summary's current-pricing rule. Errors: 400 `invalid quotas period`, 500 `quotas unavailable`.
+- `GET /api/calibrations`, `POST /api/calibrations` (`subscriptionId`, `windowKind` of that plan, `observedPct` 0–100, `observedAt` not in the future, optional `note` ≤ 200 characters; returns 201) and `DELETE /api/calibrations/:id` (204). Errors: 400 `invalid calibration`, 404 `calibration not found`, 409 `unsafe calibration storage`.
+
+### gentle-shell profiles
+
+Profiles (spec §6) are read from `~/.gentle-shell/config/gentle-ai/profiles.json` at ingest time, read-only, keeping only each role's model and effort. Every distinct definition is a versioned snapshot (sha256 of its canonical JSON). Turns are attributed per turn: **exact** when the session recorded a `gentle-pi.session-profile/v1` binding (child sessions inherit it), otherwise **estimated** when the turn's role, model and effort match exactly one profile; ambiguous turns stay unattributed. Roles are `orchestrator` for gentle-shell sessions and the subagent's agent name for child sessions.
+
+`GET /api/profiles?from&to` returns, per profile, cost and tokens total and per session, role and effort breakdowns, subscriptions drained, snapshot versions and exact vs estimated shares, plus the unattributed gentle-shell turns. Errors: 400 `invalid profiles period`, 500 `profiles unavailable`. The Explorer can group by `subscription`, `profile`, `attribution` and `role`.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
 - The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
 - Agent session files are only read, never modified.
 - Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`.
+- Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
 
 ### Keep your Claude Code history
 

@@ -377,8 +377,9 @@ describe("metricKind (S9: tokens in M with one decimal, costs in USD)", () => {
       "sessions",
     ]);
     expect(EXPLORER_DIMENSIONS).toContain("subscription");
+    expect(EXPLORER_DIMENSIONS).toContain("attribution");
     expect(EXPLORER_DIMENSIONS).toContain("hourOfDay");
-    expect(EXPLORER_DIMENSIONS).toHaveLength(13);
+    expect(EXPLORER_DIMENSIONS).toHaveLength(14);
   });
 });
 

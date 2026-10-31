@@ -93,6 +93,27 @@
           }
         }
       ]
+    },
+    {
+      "id": "chatgpt-plus",
+      "label": "ChatGPT Plus",
+      "provider": "openai",
+      "monthlyPriceUsd": 20,
+      "reviewedAt": "2026-10-28",
+      "windows": [
+        {
+          "kind": "five_hours",
+          "limit": {
+            "unit": "estimated"
+          }
+        },
+        {
+          "kind": "weekly",
+          "limit": {
+            "unit": "estimated"
+          }
+        }
+      ]
     }
   ]
 }

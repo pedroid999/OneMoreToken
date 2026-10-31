@@ -6,6 +6,8 @@ import type { Summary } from "../../cli/src/summary/contract";
 import en from "../src/i18n/en.json";
 import es from "../src/i18n/es.json";
 import { createI18n } from "../src/i18n/i18n";
+import type { Quotas } from "../src/quotas/contract";
+import { quotaTimeFormat } from "../src/quotas/state";
 import { SummaryView } from "../src/views/SummaryView";
 import { memoryStorage } from "./helpers";
 
@@ -38,11 +40,78 @@ const success = (): Summary => ({
   },
   days: [{ date: "2026-01-01", tokens: 1500000 }],
 });
+/** Summary requests; the quota block's GET /api/quotas is routed apart (L8). */
 const fetcher = vi.fn<typeof fetch>();
+let quotasBody: () => Response;
+let quotaRequests: string[] = [];
+const router: typeof fetch = async (input, init) => {
+  const url = String(input);
+  if (url.startsWith("/api/quotas?")) {
+    quotaRequests.push(url);
+    return quotasBody();
+  }
+  return fetcher(input, init);
+};
+const quotaWindow = (pct: number | null, endsAt: string) => ({
+  startsAt: "2026-01-07T20:00:00.000Z",
+  endsAt,
+  usedUsd: 3,
+  usedTokens: 10,
+  limitUsd: pct === null ? null : 12,
+  limitTokens: null,
+  estimatedPct: pct,
+  overLimitUsd: 0,
+  limitSource: pct === null ? ("unknown" as const) : ("plan" as const),
+  estimated: true as const,
+});
+const quotaKind = (
+  kind: "five_hours" | "weekly",
+  current: ReturnType<typeof quotaWindow> | null,
+  projection: Quotas["subscriptions"][number]["windows"][number]["projection"] = null,
+) => ({
+  kind,
+  unit: "usd" as const,
+  limitSource: "plan" as const,
+  limitUsd: 12,
+  limitTokens: null,
+  windows: current ? [current] : [],
+  current,
+  resetsAt: current?.endsAt ?? null,
+  projection,
+  overLimitUsd: 0,
+  calibration: { readings: [], meanAbsoluteDeviationPct: null },
+});
+const quotas = (patch: Partial<Quotas> = {}): Quotas => ({
+  config: { status: "ok" },
+  calibrations: { status: "ok" },
+  subscriptions: [
+    {
+      id: "opencode-go",
+      planId: "opencode-go",
+      label: "OpenCode Go",
+      provider: "opencode",
+      startedAt: null,
+      endedAt: null,
+      monthlyPriceUsd: null,
+      windows: [
+        quotaKind("five_hours", quotaWindow(42.5, "2026-01-08T01:00:00.000Z"), {
+          projectedLimitAt: null,
+          reached: false,
+          estimated: true,
+        }),
+        quotaKind("weekly", null),
+      ],
+      extractedValue: { apiEquivalentUsd: 1, unpricedTurns: 0, paidUsd: null, ratio: null },
+    },
+  ],
+  ...patch,
+});
 beforeEach(() => {
   window.history.replaceState(null, "", `/?agent=pi&from=${from}&to=${to}`);
-  vi.stubGlobal("fetch", fetcher);
+  vi.stubGlobal("fetch", router);
   fetcher.mockReset();
+  quotasBody = () => respond(quotas());
+  quotaRequests = [];
 });
 afterEach(() => {
   cleanup();
@@ -57,7 +126,7 @@ async function view() {
   );
   return i18n;
 }
-function respond(body = empty()) {
+function respond(body: Summary | Quotas = empty()) {
   return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
 }
 
@@ -70,7 +139,8 @@ describe("Summary", () => {
       }),
     );
     await view();
-    expect(screen.getByRole("status").textContent).toContain(en.common.loading);
+    const activity = screen.getByRole("region", { name: en.summary.activity });
+    expect(within(activity).getByRole("status").textContent).toContain(en.common.loading);
     expect(fetcher.mock.calls[0]?.[0]).toBe(
       `/api/summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     );
@@ -79,7 +149,6 @@ describe("Summary", () => {
     });
     expect(screen.getByText(en.summary.empty.title)).toBeTruthy();
     expect(screen.getByText("pnpm omt ingest").tagName).toBe("CODE");
-    expect(screen.getByText(en.summary.quotaUnavailable)).toBeTruthy();
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
@@ -102,7 +171,7 @@ describe("Summary", () => {
       await i18n.changeLanguage("es");
     });
     expect(screen.getAllByText("1,5 M").length).toBeGreaterThan(0);
-    expect(screen.getByText(es.summary.quotaUnavailable)).toBeTruthy();
+    expect(screen.getByText(es.summary.quota.title)).toBeTruthy();
     expect(window.location.search).toBe(search);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
@@ -215,5 +284,62 @@ describe("Summary", () => {
     expect(
       screen.getByRole("radio", { name: en.summary.last30Days }).getAttribute("aria-checked"),
     ).toBe("true");
+  });
+});
+
+describe('Summary quota status (S9: "estado de cuotas")', () => {
+  const quotaRegion = () => screen.findByRole("region", { name: en.summary.quota.title });
+
+  it("requests the period's quotas once and shows each current window as estimated", async () => {
+    fetcher.mockImplementation(async () => respond(success()));
+    const i18n = await view();
+    const region = await quotaRegion();
+    await within(region).findByText("OpenCode Go");
+    expect(quotaRequests).toEqual([
+      `/api/quotas?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ]);
+    const figure = within(region).getByText("42.5%");
+    expect(figure.closest('[data-estimated="true"]')?.textContent).toContain(en.quota.estimated);
+    expect(
+      within(region).getByText(
+        `Resets ${quotaTimeFormat("en").format(new Date("2026-01-08T01:00:00.000Z"))}`,
+        { exact: false },
+      ),
+    ).toBeTruthy();
+    expect(within(region).getByText(en.burnRate.pace.notBeforeReset)).toBeTruthy();
+    expect(within(region).getByText(en.summary.quota.noWindow)).toBeTruthy();
+    const link = within(region).getByRole("link", { name: en.summary.quota.open });
+    expect(link.getAttribute("href")).toContain("/burn-rate");
+    await act(async () => {
+      await i18n.changeLanguage("es");
+    });
+    expect(within(region).getByText("42,5 %")).toBeTruthy();
+    expect(quotaRequests).toHaveLength(1);
+  });
+
+  it("explains a missing config and points to Burn rate", async () => {
+    fetcher.mockImplementation(async () => respond(success()));
+    quotasBody = () => respond(quotas({ config: { status: "missing" }, subscriptions: [] }));
+    await view();
+    const region = await quotaRegion();
+    expect(await within(region).findByText(en.summary.quota.missing)).toBeTruthy();
+    expect(within(region).getByRole("link", { name: en.summary.quota.open })).toBeTruthy();
+  });
+
+  it("flags an invalid config and a failed request without hiding the summary", async () => {
+    fetcher.mockImplementation(async () => respond(success()));
+    quotasBody = () => respond(quotas({ config: { status: "invalid" }, subscriptions: [] }));
+    await view();
+    const region = await quotaRegion();
+    expect(await within(region).findByText(en.summary.quota.invalid)).toBeTruthy();
+    cleanup();
+    quotasBody = () => new Response("PRIVATE", { status: 500 });
+    await view();
+    const failed = await quotaRegion();
+    expect((await within(failed).findByRole("alert")).textContent).toContain(
+      en.summary.quota.error,
+    );
+    expect(document.body.textContent).not.toContain("PRIVATE");
+    expect(await screen.findByText("2 sessions")).toBeTruthy();
   });
 });

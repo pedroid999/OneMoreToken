@@ -2,12 +2,16 @@ import { createHash } from "node:crypto";
 import { isAbsolute, normalize } from "node:path";
 import { z } from "zod";
 import type { PricingFile } from "../data/files";
+import { ProfileDefinitionSchema, profileHash } from "../profiles/snapshot";
 import {
   IngestIssueSchema,
+  ProfileSchema,
   type Row,
   SessionSchema,
   SourceSchema,
+  SubagentRunSchema,
   ToolCallSchema,
+  TurnProfileBindingSchema,
   TurnSchema,
   UsageSchema,
 } from "../schema/tables";
@@ -86,6 +90,14 @@ export const NormalizedBatchSchema = z
     issues: z.array(
       IngestIssueSchema.extend({ location: z.string().regex(/^\d+$/).nullable() }).strict(),
     ),
+    /** Child-owned: one run per child session of this source, keyed by the child session id. */
+    subagentRuns: z.array(SubagentRunSchema.strict()).optional(),
+    /** Session profile snapshots bound in this source (spec §6.2); upserted, never deleted. */
+    profiles: z
+      .array(ProfileSchema.extend({ definition: ProfileDefinitionSchema }).strict())
+      .optional(),
+    /** Source-owned: the profile bound when each turn was recorded; unbound turns have no row. */
+    profileBindings: z.array(TurnProfileBindingSchema.strict()).optional(),
   })
   .superRefine((batch, ctx) => {
     const { source } = batch;
@@ -108,6 +120,15 @@ export const NormalizedBatchSchema = z
     unique(batch.usage.map((row) => row.turn_id));
     unique(batch.toolCalls.map((row) => row.id));
     unique(batch.issues.map((row) => row.id));
+    unique((batch.subagentRuns ?? []).map((row) => row.id));
+    const profiles = unique((batch.profiles ?? []).map((row) => row.hash));
+    unique((batch.profileBindings ?? []).map((row) => row.turn_id));
+    for (const row of batch.profiles ?? []) {
+      if (row.hash !== profileHash(row.definition) || row.name !== row.definition.name) reject();
+    }
+    for (const row of batch.profileBindings ?? []) {
+      if (!turns.has(row.turn_id) || !profiles.has(row.profile_hash)) reject();
+    }
     for (const row of batch.sessions) {
       if (
         !row.id.startsWith(`${source.id}:session:`) ||
@@ -121,6 +142,10 @@ export const NormalizedBatchSchema = z
       if (!row.id.startsWith(`${source.id}:turn:`) || !sessions.has(row.session_id)) reject();
     }
     for (const row of batch.usage) if (!turns.has(row.turn_id)) reject();
+    for (const row of batch.subagentRuns ?? []) {
+      const child = batch.sessions.find((session) => session.id === row.id);
+      if (!child || child.parent_session_id !== row.parent_session_id) reject();
+    }
     for (const row of batch.toolCalls) {
       if (!row.id.startsWith(`${source.id}:tool:`) || !turns.has(row.turn_id)) reject();
     }
@@ -142,6 +167,7 @@ export type NormalizedBatch = z.infer<typeof NormalizedBatchSchema>;
 /** Pure whole-file parser: validate with NormalizedBatchSchema; catch corrupt records into safe issues.
  * Native ids must be qualified with recordId(source.id, kind, nativeId), including session ids
  * in turn/tool native ids when those ids are only session-local. Never emit message content,
- * titles, tool arguments/results, raw errors, or speculative profile/subagent attribution.
+ * titles, tool arguments/results, raw errors, or speculative profile/subagent attribution: profile
+ * bindings are only those recorded by the agent itself.
  */
 export type SourceParser = (content: string, context: ParseContext) => NormalizedBatch;

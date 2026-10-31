@@ -57,13 +57,134 @@
     "dayUtc": "Day · UTC",
     "totalTokens": "Tokens · M",
     "issues": "Stored ingest issues (all periods): {{warning}} warnings, {{error}} errors, {{critical}} critical. Some data may be unavailable.",
-    "quotaUnavailable": "Quota unavailable until phase 3; no subscription attribution yet.",
     "error": "Summary unavailable. Check the local API and the period (both ISO bounds, at most 366 UTC days), then retry.",
     "empty": {
       "title": "No sessions in this period",
       "body": "Ingest your local agent sessions for the first time, or select another period to see existing activity.",
       "command": "pnpm omt ingest"
+    },
+    "quota": {
+      "title": "Quota status",
+      "open": "Open Burn rate",
+      "noWindow": "No open window",
+      "missing": "No subscriptions configured yet: Burn rate explains how to set them up.",
+      "empty": "Your subscriptions file lists no subscriptions.",
+      "invalid": "The subscriptions file is invalid: Burn rate explains how to fix it.",
+      "error": "Quota status unavailable. Check the local API, then retry."
     }
+  },
+  "burnRate": {
+    "title": "Burn rate",
+    "intro": "Quota windows per subscription. Providers do not publish exact usage: every window figure is an estimate, adjusted with your calibration readings.",
+    "error": "Quotas unavailable. Check the local API and the period (both ISO bounds, at most 366 UTC days), then retry.",
+    "config": {
+      "missing": {
+        "title": "No subscriptions configured",
+        "body": "Create {{path}} with version 1 and one entry per subscription (id, planId, startedAt and the providers it covers in match). Plans and limits come from data/subscriptions.json. Then reload this view."
+      },
+      "empty": {
+        "title": "No subscriptions in your config",
+        "body": "Add your plans to {{path}} to see their quota windows."
+      },
+      "invalid": "Your subscriptions file is invalid ({{path}}). Check that it is valid JSON with version 1 and that every planId exists in data/subscriptions.json, then retry."
+    },
+    "plan": "Plan {{plan}} · provider {{provider}}",
+    "limitSource": {
+      "plan": "plan limit",
+      "calibrated": "limit estimated from your readings",
+      "unknown": "limit unknown: add a calibration reading"
+    },
+    "windows": {
+      "title": "Windows",
+      "noCurrent": "No open window now"
+    },
+    "gauge": {
+      "resets": "Resets {{date}}"
+    },
+    "pace": {
+      "projected": "Limit reached around {{time}} at the current pace",
+      "notBeforeReset": "Not reached before reset at the current pace",
+      "reached": "Limit reached",
+      "unavailable": "No projection: no open window or unknown limit"
+    },
+    "timeline": {
+      "title": "5-hour windows",
+      "chartName": "5-hour windows coloured by estimated consumption",
+      "time": "Time",
+      "level": "Consumption",
+      "start": "Start",
+      "end": "End",
+      "consumption": "Estimated consumption",
+      "unknown": "Unknown",
+      "empty": "No 5-hour windows in this period."
+    },
+    "level": {
+      "ok": "Under 70%",
+      "warn": "70% to 100%",
+      "over": "At or over the limit",
+      "unknown": "Limit unknown"
+    },
+    "value": {
+      "title": "Extracted value",
+      "apiEquivalent": "API equivalent",
+      "paid": "Subscription price, prorated",
+      "ratio": "{{ratio}}× what you pay",
+      "priceUnknown": "Price unknown",
+      "unpriced_one": "{{formatted}} turn without a price is not counted",
+      "unpriced_other": "{{formatted}} turns without a price are not counted"
+    },
+    "overLimit": {
+      "title": "Usage over the limit",
+      "window": "Window",
+      "period": "Period",
+      "amount": "Over the limit · USD",
+      "range": "{{from}} → {{to}}",
+      "empty": "No usage over the limit in this period."
+    },
+    "calibration": {
+      "title": "Calibration",
+      "intro": "Enter the % your provider console shows. Readings adjust the estimated limit and measure how far the estimate deviates.",
+      "windowKind": "Window",
+      "observedPct": "Observed %",
+      "observedAt": "Date and time",
+      "note": "Note (optional)",
+      "submit": "Save calibration",
+      "saved": "Calibration saved",
+      "deleted": "Calibration deleted",
+      "invalid": "The calibrations file is unreadable or unsafe ({{path}}): quotas are computed without readings and nothing can be saved. Fix or move the file, then retry.",
+      "errors": {
+        "windowKind": "Choose one of this plan's windows.",
+        "observedPct": "Enter a number from 0 to 100.",
+        "observedAt": "Enter a valid date and time.",
+        "observedAtFuture": "The reading cannot be in the future.",
+        "note": "Keep the note to 200 characters.",
+        "rejected": "The server rejected the reading. Check the window and the values against your subscriptions file.",
+        "storage": "The calibrations file is unreadable or unsafe; nothing was saved. Check {{path}} and retry.",
+        "failed": "The calibration was not saved. Check the local API and retry."
+      }
+    },
+    "readings": {
+      "title": "Readings",
+      "empty": "No readings yet.",
+      "error": "Readings unavailable. Check the local API and retry.",
+      "window": "Window",
+      "observedAt": "Observed at",
+      "observed": "Observed",
+      "predicted": "Predicted",
+      "delta": "Deviation",
+      "note": "Note",
+      "actions": "Actions",
+      "delete": "Delete",
+      "deleteNamed": "Delete the {{window}} reading of {{time}}",
+      "deleteError": "The calibration was not deleted. Check the local API and retry."
+    },
+    "deviation": {
+      "title": "Historical deviation",
+      "line": "{{window}}: {{text}}",
+      "mean": "mean absolute deviation {{value}}",
+      "needsMore": "needs more readings (2 when the limit is estimated, 1 when the plan publishes it)"
+    },
+    "pp": "{{value}} pp"
   },
   "explorer": {
     "title": "Explorer",
@@ -88,6 +209,7 @@
       "provider": "Provider",
       "subscription": "Subscription",
       "profile": "Profile",
+      "attribution": "Attribution",
       "role": "Role",
       "effort": "Effort",
       "repo": "Repo",
@@ -142,7 +264,6 @@
     "chartName": "Chart · {{title}}",
     "unknown": "Unknown",
     "noValue": "(no value)",
-    "unavailable": "Not attributed until phase 3, grouped as no value: {{list}}.",
     "overlapping": "Tool groups overlap: a turn that calls several tools counts once per tool, so group totals sum beyond the overall total.",
     "truncated": "More groups exist beyond this limit; narrow the filters or the time range.",
     "coverageKnown": "{{metric}} · known",
@@ -351,5 +472,86 @@
   },
   "a11y": {
     "skipToContent": "Skip to content"
+  },
+  "profiles": {
+    "title": "Profiles",
+    "intro": "Cost and tokens of each gentle-shell profile, attributed per turn. Estimated attribution infers the profile from the models used by each role.",
+    "error": "Cannot load the profiles. Check that pnpm omt serve is running, then retry.",
+    "empty": {
+      "title": "No gentle-shell turns in this period",
+      "body": "Profiles come from gentle-shell sessions. Ingest them, or pick a longer period.",
+      "command": "pnpm omt ingest"
+    },
+    "noProfiles": {
+      "title": "No profile matched the turns of this period",
+      "body": "gentle-shell turns were found, but none could be attributed to a profile."
+    },
+    "column": {
+      "profile": "Profile",
+      "attribution": "Attribution",
+      "sessions": "Sessions",
+      "turns": "Turns",
+      "tokens": "Tokens",
+      "tokensPerSession": "Tokens per session",
+      "computedCost": "Computed cost",
+      "costPerSession": "Cost per session",
+      "reportedCost": "Reported cost"
+    },
+    "noCost": "no price",
+    "unknown": "unknown",
+    "attribution": {
+      "exactShare": "{{share}} exact",
+      "none": "not attributed"
+    },
+    "comparison": {
+      "title": "Comparison",
+      "table": "Profiles compared",
+      "chartName": "Computed cost and tokens per profile",
+      "cost": "Computed cost",
+      "tokens": "Tokens"
+    },
+    "versions": {
+      "title": "Versions used",
+      "item": "first seen {{date}}"
+    },
+    "roles": {
+      "title": "Roles",
+      "role": "Role",
+      "agent": "Agent",
+      "category": {
+        "orchestrator": "Orchestrator",
+        "explorer": "Explorer",
+        "writer": "Writer",
+        "verifier": "Verifier",
+        "reviewer": "Reviewer",
+        "other": "Other role",
+        "unknown": "Unknown role",
+        "outside": "Outside gentle-shell"
+      }
+    },
+    "efforts": {
+      "title": "Effort",
+      "model": "Model",
+      "effort": "Effort",
+      "none": "default",
+      "compared": "same model, different effort"
+    },
+    "subscriptions": {
+      "title": "Subscriptions drained",
+      "subscription": "Subscription",
+      "payAsYouGo": "Pay-as-you-go API"
+    },
+    "sessions": {
+      "title": "Sessions",
+      "started": "Started · UTC",
+      "session": "Session",
+      "unknownStart": "unknown start",
+      "agent": "Agent"
+    },
+    "unattributed": {
+      "title": "Unattributed gentle-shell turns",
+      "body": "These turns matched no profile, or several at once, so they count in no profile above.",
+      "none": "Every gentle-shell turn of this period is attributed to a profile."
+    }
   }
 }

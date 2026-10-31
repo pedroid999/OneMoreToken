@@ -117,6 +117,15 @@ describe("data/subscriptions.json", () => {
     }
   });
 
+  it("carries ChatGPT Plus with estimated 5 h and weekly windows for Codex usage", () => {
+    const plus = loadSubscriptions().plans.find((p) => p.id === "chatgpt-plus");
+    expect(plus).toMatchObject({ provider: "openai", monthlyPriceUsd: 20 });
+    expect(plus?.windows).toEqual([
+      { kind: "five_hours", limit: { unit: "estimated" } },
+      { kind: "weekly", limit: { unit: "estimated" } },
+    ]);
+  });
+
   it("rejects duplicated plan ids", () => {
     const plan = { id: "x", label: "X", provider: "p", windows: [] };
     const result = SubscriptionsFileSchema.safeParse({ version: 1, plans: [plan, plan] });

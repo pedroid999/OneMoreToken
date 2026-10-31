@@ -9,7 +9,7 @@ import {
 } from "@omt/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
-import type { ExplorerResponse } from "../src/explorer/contract";
+import type { ExplorerResponse, ExplorerValue } from "../src/explorer/contract";
 
 let db: Database;
 const from = "2026-01-01T00:00:00.000Z";
@@ -99,7 +99,6 @@ describe("POST /api/explorer/query metrics (S6, L16 metrics)", () => {
         { name: "cacheWrite", type: "metric" },
       ],
       rows: [{ input: 100, output: 30, cacheRead: 300, cacheWrite: 80 }],
-      unavailable: [],
       overlapping: false,
       truncated: false,
     } satisfies ExplorerResponse);
@@ -245,21 +244,8 @@ describe("POST /api/explorer/query dimensions (S7, L16 dimensions)", () => {
     const body = (await response.json()) as ExplorerResponse;
     expect(body.rows).toEqual(expected);
     expect(body.columns[0]).toEqual({ name: dimension, type: "dimension" });
-    expect(body.unavailable).toEqual([]);
+    expect(body).not.toHaveProperty("unavailable");
   });
-
-  it.each(["subscription", "profile", "role"])(
-    "reports %s as unavailable and groups it as null, never guessed",
-    async (dimension) => {
-      const response = await query({ dimensions: [dimension, "agent"] });
-      const body = (await response.json()) as ExplorerResponse;
-      expect(body.unavailable).toEqual([dimension]);
-      expect(body.rows).toEqual([
-        { [dimension]: null, agent: "claude-code", turns: 2 },
-        { [dimension]: null, agent: "pi", turns: 1 },
-      ]);
-    },
-  );
 
   it("counts a turn once per distinct tool and flags overlapping totals", async () => {
     const response = await query({ metrics: ["turns", "input"], dimensions: ["tool"] });
@@ -337,7 +323,7 @@ describe("POST /api/explorer/query filters and range (S9, L16 filters)", () => {
     ).toEqual([{ day: "2026-01-02", turns: 1 }]);
   });
 
-  it("treats unavailable dimensions as null in filters", async () => {
+  it("treats a missing role as no value in filters", async () => {
     expect(await rows({ filters: [{ dimension: "role", op: "in", values: ["build"] }] })).toEqual([
       { turns: 0 },
     ]);
@@ -504,5 +490,81 @@ describe("POST /api/explorer/query queueing", () => {
     expect(response.status).toBe(200);
     expect(((await response.json()) as ExplorerResponse).rows).toEqual([{ turns: 3 }]);
     all.mockRestore();
+  });
+});
+
+describe("POST /api/explorer/query phase 3 dimensions (S10, L10)", () => {
+  const everyMetric = { metrics: ["input", "output", "total", "turns"], dimensions: ["agent"] };
+  let before: Record<string, ExplorerValue>[];
+
+  beforeEach(async () => {
+    before = await rows(everyMetric);
+    await db.run(
+      "INSERT INTO subscriptions VALUES ('sub', 'claude-pro', 'p', 'Claude', NULL, NULL)",
+    );
+    await db.run("INSERT INTO subscription_rules VALUES (0, 'sub', 'p', NULL)");
+    await db.run(
+      `INSERT INTO profiles VALUES ('h1', 'alpha', '{}', $1), ('h2', 'alpha', '{}', $1)`,
+      [from],
+    );
+    await db.run(
+      "INSERT INTO turn_profile VALUES ('t1', 'h1', 'exact'), ('t3', 'h2', 'estimated')",
+    );
+    // gentle-shell parent, a child with a run and a child without one.
+    await db.run(`INSERT INTO ingest_checkpoints VALUES ('src3', 'h', 'test', $1, $2)`, [
+      from,
+      currentHash,
+    ]);
+    await session("g", "src3", "gentle-shell", null);
+    await session("g-child", "src3", "gentle-shell", null);
+    await session("g-orphan", "src3", "gentle-shell", null);
+    await db.run("UPDATE sessions SET parent_session_id = 'g' WHERE id = 'g-child'");
+    await db.run("UPDATE sessions SET format_version = 'pi-subagent/3' WHERE id = 'g-orphan'");
+    await db.run(
+      `INSERT INTO subagent_runs (id, parent_session_id, role, input_tokens, output_tokens,
+        cache_read_tokens, cache_write_tokens) VALUES ('g-child', 'g', 'worker', 0, 0, 0, 0)`,
+    );
+    await turn("g1", "g", "2026-01-01T01:00:00Z", "m-a", null, [1, 0, 0, 0, null, null]);
+    await turn("g2", "g-child", "2026-01-01T02:00:00Z", "m-a", null, [2, 0, 0, 0, null, null]);
+    await turn("g3", "g-orphan", "2026-01-01T03:00:00Z", "m-a", null, [4, 0, 0, 0, null, null]);
+  });
+
+  it("groups by subscription through turn_subscriptions; unmatched turns are pay-as-you-go", async () => {
+    expect(await rows({ dimensions: ["subscription"], metrics: ["turns", "input"] })).toEqual([
+      { subscription: "sub", turns: 5, input: 107 },
+      { subscription: null, turns: 1, input: 0 },
+    ]);
+  });
+
+  it("groups by profile name and attribution", async () => {
+    expect(await rows({ dimensions: ["profile", "attribution"] })).toEqual([
+      { profile: "alpha", attribution: "estimated", turns: 1 },
+      { profile: "alpha", attribution: "exact", turns: 1 },
+      { profile: null, attribution: null, turns: 4 },
+    ]);
+    expect(
+      await rows({ filters: [{ dimension: "profile", op: "in", values: ["alpha"] }] }),
+    ).toEqual([{ turns: 2 }]);
+    expect(
+      await rows({ filters: [{ dimension: "attribution", op: "notIn", values: ["exact"] }] }),
+    ).toEqual([{ turns: 5 }]);
+  });
+
+  it("groups by role: orchestrator, the run role, unknown children, none outside gentle-shell", async () => {
+    expect(await rows({ dimensions: ["role"], metrics: ["turns", "input"] })).toEqual([
+      { role: "orchestrator", turns: 1, input: 1 },
+      { role: "unknown", turns: 1, input: 4 },
+      { role: "worker", turns: 1, input: 2 },
+      { role: null, turns: 3, input: 100 },
+    ]);
+    expect(
+      await rows({ filters: [{ dimension: "role", op: "in", values: ["worker", "unknown"] }] }),
+    ).toEqual([{ turns: 2 }]);
+  });
+
+  it("keeps the existing dimensions and metrics unchanged by the attribution joins", async () => {
+    await db.run("DELETE FROM sessions WHERE source_id = 'src3'");
+    await db.run("DELETE FROM turns WHERE id IN ('g1', 'g2', 'g3')");
+    expect(await rows(everyMetric)).toEqual(before);
   });
 });
