@@ -332,9 +332,10 @@ const PROVIDER_RESET_JITTER_MS = 5 * 60_000;
 /**
  * Codex repeats its rate limits on every token count, so one burst would outweigh every other
  * reading. Keeps, per subscription, window kind and window instance, the latest reading observed
- * before the instance ends. An instance is identified by the provider's reset time; resets less
- * than one window length apart are the same instance (the next one cannot reset sooner), which
- * absorbs a reset time that jitters between events. Output is sorted by observedAt, then id.
+ * before the instance ends. An instance is identified by the provider's reset time; resets at most
+ * `PROVIDER_RESET_JITTER_MS` apart are the same instance (Codex jitters by seconds), while
+ * overlapping weekly windows reset days apart and stay separate. Output is sorted by observedAt,
+ * then id.
  */
 export function latestProviderReadings(
   readings: readonly ProviderQuotaReading[],

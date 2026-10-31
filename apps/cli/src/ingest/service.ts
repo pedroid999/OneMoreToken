@@ -75,6 +75,8 @@ export interface IngestServiceOptions {
   /** gentle-shell `profiles.json` (D5). Defaults to the real file only with default discovery
    * (no `roots`), so tests never read the home directory. */
   profilesPath?: string;
+  /** Replaces the read-only git sync (Phase 4 L14); tests use it to simulate a failure. */
+  syncGit?: (db: Database) => Promise<void>;
 }
 const adapters = {
   "claude-code": { version: CLAUDE_CODE_ADAPTER_VERSION, parse: parseClaudeCode },
@@ -387,7 +389,13 @@ export function ingestSessions(
       }
     }
     // Read-only git links of the sessions' repositories (Phase 4 L14); never counted in metrics.
-    await syncGitRepos(db);
+    // Sources are already persisted: a git failure keeps the previous links and must not fail
+    // the response or skip the derived rewrites below.
+    try {
+      await (options.syncGit ?? syncGitRepos)(db);
+    } catch {
+      // Keep the last synced git links.
+    }
     // Derived: rewritten in full after every ingest, whatever changed (L10, Phase 4 L14 (3)).
     await recomputeProfileAttribution(db);
     await recomputeCommitAttribution(db);
