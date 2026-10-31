@@ -5,4 +5,8 @@ export * from "./db/migrate";
 export * from "./ingest/batch";
 export * from "./ingest/persist";
 export * from "./pricing/calculate";
+export * from "./profiles";
+export * from "./quota/engine";
 export * from "./schema/tables";
+export * from "./subscriptions/calibrations";
+export * from "./subscriptions/config";

@@ -1,0 +1,106 @@
+/* Profiles view (spec §7.1, §6). Design tokens only (spec §8.2); `.estimated` lives in quotas.css. */
+
+.profiles__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.profiles .panel,
+.profiles .state {
+  margin-top: var(--space-6);
+}
+
+.profiles__muted {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.profiles__note {
+  display: block;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+}
+
+.profiles__link {
+  color: var(--color-accent);
+}
+
+.profiles__attribution {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.profiles__section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: var(--border-thin) solid var(--color-border);
+}
+
+.profiles__subtitle {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.profiles__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profiles__list li + li {
+  margin-top: var(--space-2);
+}
+
+.profiles__chart {
+  overflow-x: auto;
+  margin: 0 0 var(--space-4);
+}
+
+.profiles__table-wrap {
+  overflow-x: auto;
+}
+
+.profiles__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.profiles__table th,
+.profiles__table td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-thin) solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+}
+
+.profiles__table thead th {
+  color: var(--color-fg-muted);
+}
+
+.profiles__table [data-numeric="true"] {
+  text-align: end;
+}
+
+.profiles__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6) var(--space-8);
+  margin: var(--space-4) 0 0;
+}
+
+.profiles__facts dt {
+  color: var(--color-fg-muted);
+}
+
+.profiles__facts dd {
+  margin: var(--space-2) 0 0;
+}

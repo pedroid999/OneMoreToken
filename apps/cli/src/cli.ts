@@ -49,6 +49,7 @@ Options for ingest (start omt serve first):
   --since <timestamp>   ISO timestamp: select files by modification time only
                         (opencode: sessions by last update time)
                         Defaults: ~/.claude/projects/, ~/.gentle-shell/agent/sessions/,
+                        ~/.gentle-shell/agent/gentle-agents/ (subagents),
                         ~/.pi/agent/sessions/, \${XDG_DATA_HOME:-~/.local/share}/opencode/.
                         Source files are read-only; metrics only.
 

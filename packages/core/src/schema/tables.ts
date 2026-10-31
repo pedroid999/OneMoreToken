@@ -96,6 +96,11 @@ export const TurnProfileSchema = z.object({
   attribution: z.enum(["exact", "estimated"]),
 });
 
+export const TurnProfileBindingSchema = z.object({
+  turn_id: id,
+  profile_hash: id,
+});
+
 export const PricingRowSchema = z.object({
   model: z.string().min(1),
   provider: z.string().min(1),
@@ -114,6 +119,13 @@ export const SubscriptionSchema = z.object({
   label: z.string().min(1),
   started_at: nullable(date),
   ended_at: nullable(date),
+});
+
+export const SubscriptionRuleSchema = z.object({
+  position: z.number().int().nonnegative(),
+  subscription_id: id,
+  provider: z.string().min(1),
+  agent: nullable(z.string().min(1)),
 });
 
 export const QuotaWindowSchema = z.object({
@@ -173,6 +185,8 @@ export const TABLE_SCHEMAS = {
   calibrations: CalibrationSchema,
   commits: CommitSchema,
   ingest_issues: IngestIssueSchema,
+  subscription_rules: SubscriptionRuleSchema,
+  turn_profile_bindings: TurnProfileBindingSchema,
 } as const;
 
 export type TableName = keyof typeof TABLE_SCHEMAS;

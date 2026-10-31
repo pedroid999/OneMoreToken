@@ -89,6 +89,7 @@ describe("omt ingest client", () => {
     expect(c.out()).toContain("--url <url>");
     expect(c.out()).toContain("claude-code, gentle-shell, pi or opencode");
     expect(c.out()).toContain("~/.local/share}/opencode/");
+    expect(c.out()).toContain("~/.gentle-shell/agent/gentle-agents/ (subagents)");
     expect(c.err()).toBe("");
   });
 
@@ -294,7 +295,7 @@ describe("omt serve", () => {
     });
 
     expect(code).toBe(0);
-    expect(health).toEqual({ status: "ok", schemaVersion: 4 });
+    expect(health).toEqual({ status: "ok", schemaVersion: 6 });
     expect(existsSync(dbPath)).toBe(true);
     expect(c.err()).toBe("");
     expect(c.out()).toMatch(

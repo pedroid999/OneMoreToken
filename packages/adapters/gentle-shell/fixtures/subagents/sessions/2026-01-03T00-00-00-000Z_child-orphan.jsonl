@@ -1,0 +1,2 @@
+{"type":"session","version":3,"id":"child-orphan","timestamp":"2026-01-03T00:00:00.000Z","cwd":"/synthetic/project"}
+{"type":"message","id":"answer","parentId":null,"timestamp":"2026-01-03T00:00:01.000Z","message":{"role":"assistant","provider":"synthetic","model":"model-a","content":[{"type":"text","text":"PRIVATE_SENTINEL"}],"usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2}}}

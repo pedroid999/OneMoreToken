@@ -24,6 +24,7 @@ export const EXPLORER_DIMENSIONS = [
   "provider",
   "subscription",
   "profile",
+  "attribution",
   "role",
   "effort",
   "repo",
@@ -861,7 +862,6 @@ export function parseFilterValues(text: string): string[] {
 export interface ExplorerResult {
   columns: Array<{ name: string; type: "dimension" | "metric" | "coverage" }>;
   rows: Row[];
-  unavailable: ExplorerDimension[];
   overlapping: boolean;
   truncated: boolean;
 }

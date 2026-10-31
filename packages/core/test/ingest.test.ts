@@ -343,4 +343,54 @@ describe("metrics-only ingestion", () => {
       expect(await stored()).toEqual(before);
     }
   });
+
+  it("persists child-owned subagent runs that survive a parent re-ingest and rejects unlinked runs", async () => {
+    const parentContext = { ...context, path: "/synthetic/parent.jsonl" };
+    const parent = fixtureRow(batch(parentContext).sessions).id;
+    const child = batch({ ...context, path: "/synthetic/child.jsonl" });
+    const session = fixtureRow(child.sessions);
+    session.parent_session_id = parent;
+    const run = {
+      id: session.id,
+      parent_session_id: parent,
+      role: "gentle-ai-worker",
+      model: "synthetic",
+      provider: "synthetic",
+      effort: "high",
+      started_at: "2026-01-01T00:00:00.000Z",
+      duration_ms: 1000,
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_read_tokens: 3,
+      cache_write_tokens: 4,
+      reported_cost_usd: 0,
+      computed_cost_usd: null,
+    };
+    await persistBatch(db, batch(parentContext), hashContent("parent"));
+    await persistBatch(db, { ...child, subagentRuns: [run] }, hashContent("child"));
+    const runs = () =>
+      db.all("SELECT id, parent_session_id, role, input_tokens FROM subagent_runs");
+    const expected = [
+      { id: session.id, parent_session_id: parent, role: run.role, input_tokens: 10n },
+    ];
+    expect(await runs()).toEqual(expected);
+    await persistBatch(db, batch(parentContext), hashContent("parent-changed"));
+    expect(await runs()).toEqual(expected);
+    await persistBatch(db, { ...child, subagentRuns: [run] }, hashContent("child-changed"));
+    expect(await runs()).toEqual(expected);
+    const before = await stored();
+    for (const invalid of [
+      { ...run, parent_session_id: "other" },
+      { ...run, id: "missing" },
+      { ...run, prompt: "PRIVATE_SENTINEL" },
+    ]) {
+      await expect(
+        persistBatch(db, { ...child, subagentRuns: [invalid] }, hashContent("bad")),
+      ).rejects.toThrow();
+    }
+    expect(await runs()).toEqual(expected);
+    expect(await stored()).toEqual(before);
+    await persistBatch(db, child, hashContent("child-unlinked"));
+    expect(await runs()).toEqual([]);
+  });
 });

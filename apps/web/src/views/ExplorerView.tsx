@@ -36,8 +36,6 @@ import "../styles/explorer.css";
 // Vega is most of the bundle: load it only when a chart is shown.
 const Chart = lazy(() => import("../explorer/Chart").then((module) => ({ default: module.Chart })));
 const DAY = 86_400_000;
-/** Phase 3 attributes these (L3); until then they group as null. */
-const UNAVAILABLE = ["subscription", "profile", "role"] as const;
 
 type QueryResult = { body: string; attempt: number; data?: ExplorerResult; failed?: boolean };
 type ViewsResult = { views?: SavedViewEntry[]; taken?: Set<string>; failed?: boolean };
@@ -87,8 +85,7 @@ export function ExplorerView() {
       .then(async (response) => {
         if (!response.ok) throw new Error("explorer unavailable");
         const data: ExplorerResult = await response.json();
-        if (![data?.rows, data?.columns, data?.unavailable].every(Array.isArray))
-          throw new Error("bad shape");
+        if (![data?.rows, data?.columns].every(Array.isArray)) throw new Error("bad shape");
         if (!controller.signal.aborted) setResult({ body, attempt, data });
       })
       .catch(() => {
@@ -138,7 +135,6 @@ export function ExplorerView() {
       ]) as Record<string, string>,
     [t],
   );
-  const listFormat = new Intl.ListFormat(language === "es" ? "es-ES" : "en-US");
 
   // A loaded view keeps its stored spec while its query and chart are unchanged.
   const loaded = views.views?.find((view) => view.id === state.view);
@@ -250,11 +246,6 @@ export function ExplorerView() {
                   );
                 })}
               </div>
-              <p className="explorer__muted">
-                {t("explorer.unavailable", {
-                  list: listFormat.format(UNAVAILABLE.map((d) => labels[d] ?? d)),
-                })}
-              </p>
             </fieldset>
             <div className="explorer__group">
               <p className="explorer__label">{t("explorer.chart")}</p>
@@ -332,13 +323,6 @@ export function ExplorerView() {
           >
             {data && datasets ? (
               <>
-                {data.unavailable.length > 0 ? (
-                  <p className="explorer__warning">
-                    {t("explorer.unavailable", {
-                      list: listFormat.format(data.unavailable.map((d) => labels[d] ?? d)),
-                    })}
-                  </p>
-                ) : null}
                 {data.overlapping ? (
                   <p className="explorer__warning">{t("explorer.overlapping")}</p>
                 ) : null}

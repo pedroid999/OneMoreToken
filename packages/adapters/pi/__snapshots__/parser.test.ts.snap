@@ -30,7 +30,7 @@ exports[`Pi v3 metrics-only parser > inherits model/effort from tree ancestors, 
     },
   ],
   "source": {
-    "adapter_version": "pi-v3/2",
+    "adapter_version": "pi-v3/3",
     "agent": "pi",
     "id": "8df3b898f78adc8ba4f06c5ac267a49a68efaebd822b5054337fb00ee197f082",
     "last_ingested_at": "2026-01-01T00:00:00.000Z",
@@ -165,7 +165,7 @@ exports[`Pi v3 metrics-only parser > rejects missing/unsupported header version 
   ],
   "sessions": [],
   "source": {
-    "adapter_version": "pi-v3/2",
+    "adapter_version": "pi-v3/3",
     "agent": "pi",
     "id": "8df3b898f78adc8ba4f06c5ac267a49a68efaebd822b5054337fb00ee197f082",
     "last_ingested_at": "2026-01-01T00:00:00.000Z",
@@ -217,7 +217,7 @@ exports[`Pi v3 metrics-only parser > snapshots reconstructed evidence, recovers 
     },
   ],
   "source": {
-    "adapter_version": "pi-v3/2",
+    "adapter_version": "pi-v3/3",
     "agent": "pi",
     "id": "8df3b898f78adc8ba4f06c5ac267a49a68efaebd822b5054337fb00ee197f082",
     "last_ingested_at": "2026-01-01T00:00:00.000Z",

@@ -9,7 +9,7 @@ import {
   type PricingFile,
   PricingFileSchema,
   type SqlParams,
-  UNAVAILABLE_DIMENSIONS,
+  TURN_ROLE_SQL,
 } from "@omt/core";
 import { withDatabase } from "../db-queue";
 import type { SummaryPeriod } from "../summary/contract";
@@ -33,15 +33,15 @@ export function parseExplorerQuery(input: unknown): ExplorerRequest | null {
 }
 
 const UTC = "b.ts AT TIME ZONE 'UTC'";
-const NONE = "CAST(NULL AS VARCHAR)";
 /** Fixed SQL per dimension: the only expressions ever placed in a query (L16). */
 const DIMENSION_SQL: Record<ExplorerDimension, string> = {
   agent: "b.agent",
   model: "b.model",
   provider: "b.provider",
-  subscription: NONE,
-  profile: NONE,
-  role: NONE,
+  subscription: "b.subscription",
+  profile: "b.profile",
+  attribution: "b.attribution",
+  role: "b.role",
   effort: "b.effort",
   repo: "b.repo",
   branch: "b.branch",
@@ -101,6 +101,11 @@ export function readExplorer(
     const dimensions = query.dimensions.map((d, i) => `${DIMENSION_SQL[d]} AS d${i},`);
     const positions = query.dimensions.map((_, i) => `${i + 1}`);
     const limit = query.limit ?? DEFAULT_EXPLORER_LIMIT;
+    // Attribution joins (L10) only when a dimension or filter needs them; each is one row per turn.
+    const used = new Set([...query.dimensions, ...query.filters.map((f) => f.dimension)]);
+    const bySubscription = used.has("subscription");
+    const byProfile = used.has("profile") || used.has("attribution");
+    const byRole = used.has("role");
     // Computed cost counts only when priced with the current catalog, as in the Summary.
     const rows = await db.all(
       `WITH b AS (
@@ -108,10 +113,17 @@ export function readExplorer(
           s.agent, s.repo, s.branch, u.turn_id IS NOT NULL AS has_usage,
           u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens,
           u.reported_cost_usd,
-          CASE WHEN c.pricing_hash = $3 THEN u.computed_cost_usd END AS computed_cost_usd
+          CASE WHEN c.pricing_hash = $3 THEN u.computed_cost_usd END AS computed_cost_usd,
+          ${bySubscription ? "a.subscription_id" : "NULL"} AS subscription,
+          ${byProfile ? "pp.name" : "NULL"} AS profile,
+          ${byProfile ? "tp.attribution" : "NULL"} AS attribution,
+          ${byRole ? TURN_ROLE_SQL : "NULL"} AS role
         FROM turns t LEFT JOIN usage u ON u.turn_id = t.id
         LEFT JOIN sessions s ON s.id = t.session_id
         LEFT JOIN ingest_checkpoints c ON c.source_id = s.source_id
+        ${bySubscription ? "LEFT JOIN turn_subscriptions a ON a.turn_id = t.id" : ""}
+        ${byProfile ? "LEFT JOIN turn_profile tp ON tp.turn_id = t.id LEFT JOIN profiles pp ON pp.hash = tp.profile_hash" : ""}
+        ${byRole ? "LEFT JOIN subagent_runs r ON r.id = s.id" : ""}
         WHERE t.ts >= $1::TIMESTAMPTZ AND t.ts < $2::TIMESTAMPTZ
       )
       SELECT ${dimensions.join(" ")}
@@ -180,9 +192,6 @@ export function readExplorer(
     return {
       columns,
       rows: result,
-      unavailable: query.dimensions.filter((d): d is (typeof UNAVAILABLE_DIMENSIONS)[number] =>
-        (UNAVAILABLE_DIMENSIONS as readonly string[]).includes(d),
-      ),
       overlapping: groupedByTool,
       truncated: rows.length > limit,
     };

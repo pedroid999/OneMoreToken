@@ -37,6 +37,19 @@ export function summaryPeriod(params: URLSearchParams, now = Date.now()): Summar
   return { from, to };
 }
 
+/** Joins a turn `t` to its source checkpoint `c`; both to primary keys, so no fanout. */
+export const PRICING_CHECKPOINT_JOIN = `LEFT JOIN sessions s ON s.id = t.session_id
+      LEFT JOIN ingest_checkpoints c ON c.source_id = s.source_id`;
+
+/**
+ * The catalog in force and its hash. Computed cost only counts when the source checkpoint was priced
+ * with this hash (`c.pricing_hash = hash`); other rows are stale until reingested.
+ */
+export function currentPricing(pricing?: PricingFile): { catalog: PricingFile; hash: string } {
+  const catalog = PricingFileSchema.parse(pricing ?? loadPricing());
+  return { catalog, hash: hashContent(JSON.stringify(catalog)) };
+}
+
 function numeric(value: unknown, integer = true): number {
   if (typeof value !== "number" && typeof value !== "bigint") throw new Error("unsafe summary");
   const number = Number(value);
@@ -58,13 +71,10 @@ export function readSummary(
   pricing?: PricingFile,
 ): Promise<Summary> {
   return withDatabase(db, async () => {
-    const catalog = PricingFileSchema.parse(pricing ?? loadPricing());
-    const catalogHash = hashContent(JSON.stringify(catalog));
+    const { catalog, hash: catalogHash } = currentPricing(pricing);
     const params = [period.from, period.to];
-    // Both joins are to primary keys: at most one checkpoint per source file, no fanout.
     const selected = `FROM turns t LEFT JOIN usage u ON u.turn_id = t.id
-      LEFT JOIN sessions s ON s.id = t.session_id
-      LEFT JOIN ingest_checkpoints c ON c.source_id = s.source_id
+      ${PRICING_CHECKPOINT_JOIN}
       WHERE t.ts >= $1::TIMESTAMPTZ AND t.ts < $2::TIMESTAMPTZ`;
     const [row] = await db.all(
       `SELECT count(DISTINCT t.session_id) AS sessions,
