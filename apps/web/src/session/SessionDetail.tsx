@@ -7,6 +7,7 @@ import { Panel } from "../components/Panel";
 import { formatNumber, formatTokensM, formatUsd } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { agentLabel, dateTimeFormat, roleLabel } from "./labels";
+import { SessionCommits } from "./SessionCommits";
 import { SessionLink } from "./SessionLink";
 import { contextRows, contextSpec, detailRequest, isSessionId, toolsSummary } from "./state";
 import { useResource } from "./useResource";
@@ -20,6 +21,7 @@ const isDetail = (value: unknown): value is SessionDetailData =>
   typeof (value as SessionDetailData).session === "object" &&
   Array.isArray((value as SessionDetailData).turns) &&
   Array.isArray((value as SessionDetailData).children) &&
+  Array.isArray((value as SessionDetailData).commits) &&
   typeof (value as SessionDetailData).pricing === "object";
 
 /** One session: header, context curve, turns, tools and related sessions (L21 UI). */
@@ -312,7 +314,7 @@ function Sections({ data, language }: { data: SessionDetailData; language: Langu
           </>
         ) : null}
       </Panel>
-      <p className="session__muted">{t("session.detail.commitsLater")}</p>
+      <SessionCommits commits={data.commits} language={language} />
     </>
   );
 }

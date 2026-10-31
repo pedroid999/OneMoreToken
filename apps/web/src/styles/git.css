@@ -1,0 +1,63 @@
+/* Git view (spec §7.1, Phase 4 L20). Design tokens only (spec §8.2). */
+
+.git__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.git .panel,
+.git .state {
+  margin-top: var(--space-6);
+}
+
+.git__muted {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.git__headline {
+  margin: var(--space-4) 0 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.git__link {
+  color: var(--color-accent);
+}
+
+.git__chart {
+  overflow-x: auto;
+}
+
+.git__table-wrap {
+  overflow-x: auto;
+}
+
+.git__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.git__table th,
+.git__table td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-thin) solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+}
+
+.git__table thead th {
+  color: var(--color-fg-muted);
+}
+
+.git__table [data-numeric="true"] {
+  text-align: end;
+}
+
+.git__subject {
+  white-space: normal;
+}

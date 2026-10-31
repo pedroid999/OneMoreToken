@@ -12,6 +12,7 @@ import type { SummaryPeriod } from "../summary/contract";
 import { summaryPeriod } from "../summary/service";
 import type {
   SessionChild,
+  SessionCommit,
   SessionDetail,
   SessionItem,
   SessionList,
@@ -289,6 +290,33 @@ export function readSession(
         ...stats(childStats.get(required(child.id))),
       }),
     );
-    return { session: item(row, own), turns, parent, children, pricing: info };
+    // One row per sha, like GET /api/git: clones of a repository hold the same commit, whose
+    // lines count once while the tokens of every clone's turns are summed.
+    const commitRows = await db.all(
+      `SELECT min(m.repo) AS repo, m.sha, min(m.message) AS message,
+        ${iso("min(m.authored_at)")} AS authored_at, max(m.additions) AS additions,
+        max(m.deletions) AS deletions,
+        sum(u.input_tokens::DOUBLE + u.output_tokens + u.cache_read_tokens + u.cache_write_tokens)
+          AS tokens
+      FROM turn_commits tc JOIN turns t ON t.id = tc.turn_id
+      JOIN commits m ON m.repo = tc.repo AND m.sha = tc.sha
+      LEFT JOIN usage u ON u.turn_id = t.id
+      WHERE t.session_id = $1
+      GROUP BY m.sha
+      ORDER BY min(m.authored_at), min(m.repo), m.sha`,
+      [id],
+    );
+    const commits = commitRows.map(
+      (commit): SessionCommit => ({
+        repo: basename(commit.repo) ?? "",
+        sha: required(commit.sha).slice(0, 7),
+        subject: text(commit.message) ?? "",
+        authoredAt: required(commit.authored_at),
+        additions: numeric(commit.additions ?? 0),
+        deletions: numeric(commit.deletions ?? 0),
+        tokens: numeric(commit.tokens ?? 0),
+      }),
+    );
+    return { session: item(row, own), turns, parent, children, pricing: info, commits };
   });
 }

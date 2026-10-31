@@ -170,8 +170,8 @@ The Session view backend (spec §7.1): metrics only, no message content. Both en
 #### `GET /api/sessions/:id`
 
 - `id` must be a stored record id (`<sha256>:session:<sha256>`, lowercase hex); anything else returns 400 `{"error":"invalid session id"}` before any database read, and an unknown id returns 404 `{"error":"session not found"}`.
-- Returns `session` (the list item shape, with stats over every turn of the session), `turns` in `idx` order (`idx`, `role`, `ts`, `model`, `provider`, `effort`, `isCompaction`, `tokens` or `null` without usage, `contextTokens`, per-turn `costs.reported`/`costs.computed` or `null` when unknown, and `tools` with `tool`, `status`, `durationMs`), `parent` (`{ id, agent }`, `agent` null when the parent was never ingested) and `children` (`id`, `agent`, `startedAt` and their stats).
-- `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked. Commit diffs arrive in phase 4.
+- Returns `session` (the list item shape, with stats over every turn of the session), `turns` in `idx` order (`idx`, `role`, `ts`, `model`, `provider`, `effort`, `isCompaction`, `tokens` or `null` without usage, `contextTokens`, per-turn `costs.reported`/`costs.computed` or `null` when unknown, and `tools` with `tool`, `status`, `durationMs`), `parent` (`{ id, agent }`, `agent` null when the parent was never ingested), `children` (`id`, `agent`, `startedAt` and their stats) and `commits` the session's turns are attributed to (`repo` name, short `sha`, `subject`, `authoredAt`, `additions`, `deletions`, and `tokens` of this session's turns), one per sha, oldest first.
+- `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked, and lists the associated commits with their +/− line counts (diffs themselves are not stored).
 - Unsafe aggregates or database failures on either endpoint return 500 `{"error":"sessions unavailable"}`.
 
 ### Subscriptions, quotas and calibrations
@@ -213,6 +213,8 @@ After each ingest, every distinct session working directory (a child session wit
 Attribution is per turn: each turn goes to your next commit in the same repository, when that commit lands no later than 30 minutes after the session ends (the later of its recorded end and its last turn; a subagent session uses its own end). A session with three commits splits its tokens among them; turns after the last one are **orphan**. It is recomputed in full after every ingest.
 
 `GET /api/git?from&to` (Summary period rules) returns `commits` authored in the period (repository name, short sha, subject, `authoredAt`, additions, deletions, tokens, computed and reported cost, sessions, PR number or null), `pullRequests` aggregated over those commits, and `orphanSessions` with orphan turns in the period (session, agent, repository or null, `startedAt`, orphan tokens and costs, `hadCommit`). Tokens are input + output + cache read + cache write; computed cost follows the Summary's current-pricing rule. Errors: 400 `invalid git period`, 500 `git unavailable`.
+
+The **Git** view (`/git`) shows, for the selected period, the attributed vs orphan tokens, a chart of tokens per commit over time, a commits table and a PR table with tokens per net line (tokens / (additions − deletions), not applicable when the net is zero or negative), and the orphan sessions with a link to each one in the Session view.
 
 ### Where your data lives
 

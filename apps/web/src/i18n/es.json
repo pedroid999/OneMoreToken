@@ -366,8 +366,7 @@
       "tokens": "Tokens",
       "compactions_one": "{{formatted}} compactación",
       "compactions_other": "{{formatted}} compactaciones",
-      "error": "Sesión no disponible. Revisa la API local y reintenta.",
-      "commitsLater": "Los diffs de commits asociados llegan en la fase 4."
+      "error": "Sesión no disponible. Revisa la API local y reintenta."
     },
     "context": {
       "title": "Tamaño de contexto",
@@ -415,6 +414,11 @@
       "none": "Sin sesión padre ni sesiones hijas.",
       "parentMissing": "La sesión padre no se ha ingerido.",
       "link": "{{agent}} · {{time}}"
+    },
+    "commits": {
+      "title": "Commits asociados",
+      "empty": "Ningún commit tiene turnos de esta sesión asignados.",
+      "note": "Líneas por commit; los diffs no se almacenan."
     }
   },
   "quota": {
@@ -559,5 +563,60 @@
       "body": "Estos turnos no coinciden con ningún perfil, o con varios a la vez, así que no cuentan en ningún perfil de arriba.",
       "none": "Todos los turnos de gentle-shell de este periodo están atribuidos a un perfil."
     }
+  },
+  "git": {
+    "title": "Git",
+    "intro": "Cada turno se asigna a tu siguiente commit en el mismo repositorio, hasta 30 minutos después del final de la sesión; los turnos posteriores al último commit son tokens huérfanos.",
+    "error": "Informe de Git no disponible. Revisa la API local y reintenta.",
+    "headline": "{{attributed}} asignados a commits · {{orphan}} huérfanos",
+    "empty": {
+      "title": "Sin commits ni tokens huérfanos en este periodo",
+      "body": "Ingesta tus sesiones: los commits de los repositorios donde se ejecutaron se leen en local.",
+      "command": "pnpm omt ingest"
+    },
+    "timeline": {
+      "title": "Tokens por commit",
+      "chartName": "Tokens por commit a lo largo del tiempo"
+    },
+    "commits": {
+      "title": "Commits",
+      "empty": "No hay commits creados en este periodo."
+    },
+    "pullRequests": {
+      "title": "Pull requests",
+      "empty": "No hay pull requests en este periodo."
+    },
+    "orphans": {
+      "title": "Tokens huérfanos",
+      "body": "Sesiones cuyos turnos del periodo no se asignaron a ningún commit.",
+      "empty": "No hay tokens huérfanos en este periodo.",
+      "noRepository": "Sin repositorio"
+    },
+    "column": {
+      "repository": "Repositorio",
+      "sha": "Commit",
+      "subject": "Asunto",
+      "date": "Fecha",
+      "additions": "+ líneas",
+      "deletions": "− líneas",
+      "tokens": "Tokens",
+      "computedCost": "Coste calculado",
+      "reportedCost": "Coste reportado",
+      "sessions": "Sesiones",
+      "pullRequest": "PR",
+      "commits": "Commits",
+      "tokensPerNetLine": "Tokens por línea neta",
+      "started": "Inicio de la sesión",
+      "agent": "Agente",
+      "hadCommits": "Con commits"
+    },
+    "additions": "+{{value}}",
+    "deletions": "−{{value}}",
+    "pullRequestNumber": "#{{number}}",
+    "noPullRequest": "—",
+    "noCost": "—",
+    "notApplicable": "n/a",
+    "yes": "Sí",
+    "no": "No"
   }
 }

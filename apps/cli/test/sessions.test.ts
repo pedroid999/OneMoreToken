@@ -359,6 +359,82 @@ describe("GET /api/sessions/:id (S10, L21 API: detail and context curve)", () =>
     expect(body.session.costs.computed).toEqual({ usd: null, known: 0, unknown: 1 });
   });
 
+  it("lists the commits its turns are attributed to, grouped by sha (T3, L20 item 2)", async () => {
+    const turnId = (name: string, owner: string) => recordId(source(owner), "turn", name);
+    const repoA = "/Users/private-person/clone-1/repo-a";
+    const cloneA = "/Users/private-person/clone-2/repo-a";
+    const repoB = "/Users/private-person/repo-b";
+    const shaA = "a".repeat(40);
+    const shaB = "b".repeat(40);
+    const shaC = "c".repeat(40);
+    // Two clones of repo-a hold the same commit A; commit C has no turn of this session.
+    for (const [repo, sha, at, message, additions, deletions] of [
+      [repoA, shaA, "2026-01-01T10:30:00Z", "feat: a", 12, 2],
+      [cloneA, shaA, "2026-01-01T10:30:00Z", "feat: a", 12, 2],
+      [repoB, shaB, "2026-01-01T10:10:00Z", "fix: b", 0, 3],
+      [repoB, shaC, "2026-01-01T10:20:00Z", "feat: c", 1, 0],
+    ] as const) {
+      await db.run("INSERT INTO commits VALUES ($1, $2, $3, NULL, $4, $5, $6)", [
+        repo,
+        sha,
+        at,
+        message,
+        additions,
+        deletions,
+      ]);
+    }
+    for (const [turn, owner, repo, sha] of [
+      ["p1", "parent", repoA, shaA],
+      ["p2", "parent", cloneA, shaA],
+      ["p4", "parent", repoB, shaB],
+      ["c0", "child", repoB, shaC],
+    ] as const) {
+      await db.run("INSERT INTO turn_commits VALUES ($1, $2, $3)", [
+        turnId(turn, owner),
+        repo,
+        sha,
+      ]);
+    }
+
+    const response = await get(`/api/sessions/${PARENT}`);
+    const text = await response.text();
+    expect(text).not.toContain("private-person");
+    const body = JSON.parse(text) as SessionDetail;
+    expect(body.commits).toEqual([
+      {
+        repo: "repo-b",
+        sha: "bbbbbbb",
+        subject: "fix: b",
+        authoredAt: "2026-01-01T10:10:00.000Z",
+        additions: 0,
+        deletions: 3,
+        tokens: 4,
+      },
+      {
+        repo: "repo-a",
+        sha: "aaaaaaa",
+        subject: "feat: a",
+        authoredAt: "2026-01-01T10:30:00.000Z",
+        additions: 12,
+        deletions: 2,
+        // p1 (15) + p2 (500): tokens of every clone, lines once.
+        tokens: 515,
+      },
+    ]);
+    expect((await detailBody(CHILD)).commits).toEqual([
+      expect.objectContaining({ repo: "repo-b", sha: "ccccccc", tokens: 10 }),
+    ]);
+  });
+
+  it("keeps every existing field and returns no commits when none is attributed", async () => {
+    const body = await detailBody(PARENT);
+    expect(Object.keys(body).sort()).toEqual(
+      ["children", "commits", "parent", "pricing", "session", "turns"].sort(),
+    );
+    expect(body.commits).toEqual([]);
+    expect(body.pricing).toEqual({ basis: expect.any(String), observedAt: expect.anything() });
+  });
+
   it("returns 404 for a well-formed unknown id", async () => {
     const response = await get(`/api/sessions/${sid("nobody")}`);
     expect(response.status).toBe(404);
