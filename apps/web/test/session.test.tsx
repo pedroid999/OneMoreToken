@@ -7,6 +7,7 @@ import en from "../src/i18n/en.json";
 import es from "../src/i18n/es.json";
 import { createI18n } from "../src/i18n/i18n";
 import { PreferencesProvider } from "../src/prefs/usePreferences";
+import { dateTimeFormat } from "../src/session/labels";
 import { SessionView } from "../src/views/SessionView";
 import { fakeColorScheme, memoryStorage } from "./helpers";
 
@@ -120,6 +121,17 @@ const detailBody = (): SessionDetail => ({
     },
   ],
   pricing: { basis: "historical", observedAt: null },
+  commits: [
+    {
+      repo: "repo-a",
+      sha: "abc1234",
+      subject: "feat: one",
+      authoredAt: "2026-01-02T10:30:00.000Z",
+      additions: 12,
+      deletions: 2,
+      tokens: 1_200_000,
+    },
+  ],
 });
 
 const json = (body: unknown, status = 200) =>
@@ -327,6 +339,34 @@ describe("Session detail (S10, L21 UI: /session?id=…)", () => {
     );
     await openDetail();
     expect(screen.getByText(en.session.related.parentMissing)).toBeTruthy();
+  });
+
+  it("lists the associated commits with their line counts and tokens (T3, L20 item 2)", async () => {
+    await openDetail();
+    const commits = screen.getByRole("region", { name: en.session.commits.title });
+    const table = within(commits).getByRole("table", { name: en.session.commits.title });
+    const [row] = within(table).getAllByRole("row").slice(1) as [HTMLElement];
+    expect(
+      [...row.querySelectorAll("th, td")].map((cell) => cell.textContent?.replace(/\u00a0/g, " ")),
+    ).toEqual([
+      "repo-a",
+      "abc1234",
+      "feat: one",
+      dateTimeFormat("en").format(new Date("2026-01-02T10:30:00.000Z")),
+      "+12",
+      "−2",
+      "1.2 M",
+    ]);
+    expect(within(commits).getByText(en.session.commits.note)).toBeTruthy();
+    expect(screen.queryByText(/phase 4/)).toBeNull();
+  });
+
+  it("says when no commit is associated", async () => {
+    fetcher.mockImplementation(async () => json({ ...detailBody(), commits: [] }));
+    await openDetail();
+    const commits = screen.getByRole("region", { name: en.session.commits.title });
+    expect(within(commits).getByText(en.session.commits.empty)).toBeTruthy();
+    expect(within(commits).queryByRole("table")).toBeNull();
   });
 
   it("shows not found for unknown and malformed ids; malformed ones are never fetched", async () => {

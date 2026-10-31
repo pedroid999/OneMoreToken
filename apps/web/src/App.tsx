@@ -3,6 +3,7 @@ import { useLayoutEffect } from "react";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import { Link } from "./components/Link";
 import { StatusBar } from "./components/StatusBar";
+import { GitView } from "./git/GitView";
 import { type AppEnvironment, PreferencesProvider, usePreferences } from "./prefs/usePreferences";
 import { matchRoute, navigate, ROUTES, type Route, useLocation } from "./router";
 import { AboutView } from "./views/AboutView";
@@ -148,6 +149,8 @@ function View({ route }: { route: Route }) {
       return <SessionView />;
     case "profiles":
       return <ProfilesView />;
+    case "git":
+      return <GitView />;
     case "settings":
       return <SettingsView />;
     case "about":

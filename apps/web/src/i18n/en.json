@@ -366,8 +366,7 @@
       "tokens": "Tokens",
       "compactions_one": "{{formatted}} compaction",
       "compactions_other": "{{formatted}} compactions",
-      "error": "Session unavailable. Check the local API, then retry.",
-      "commitsLater": "Associated commit diffs arrive in phase 4."
+      "error": "Session unavailable. Check the local API, then retry."
     },
     "context": {
       "title": "Context size",
@@ -415,6 +414,11 @@
       "none": "No parent or child sessions.",
       "parentMissing": "Parent session not ingested.",
       "link": "{{agent}} · {{time}}"
+    },
+    "commits": {
+      "title": "Associated commits",
+      "empty": "No commit is attributed to this session's turns.",
+      "note": "Line counts per commit; diffs are not stored."
     }
   },
   "quota": {
@@ -559,5 +563,60 @@
       "body": "These turns matched no profile, or several at once, so they count in no profile above.",
       "none": "Every gentle-shell turn of this period is attributed to a profile."
     }
+  },
+  "git": {
+    "title": "Git",
+    "intro": "Each turn goes to your next commit in the same repository, up to 30 minutes after the session ends; turns after the last commit are orphan tokens.",
+    "error": "Git report unavailable. Check the local API and retry.",
+    "headline": "{{attributed}} attributed to commits · {{orphan}} orphan",
+    "empty": {
+      "title": "No commits or orphan tokens in this period",
+      "body": "Ingest your sessions: the commits of the repositories they ran in are read locally.",
+      "command": "pnpm omt ingest"
+    },
+    "timeline": {
+      "title": "Tokens per commit",
+      "chartName": "Tokens per commit over time"
+    },
+    "commits": {
+      "title": "Commits",
+      "empty": "No commits authored in this period."
+    },
+    "pullRequests": {
+      "title": "Pull requests",
+      "empty": "No pull requests in this period."
+    },
+    "orphans": {
+      "title": "Orphan tokens",
+      "body": "Sessions whose turns in the period were attributed to no commit.",
+      "empty": "No orphan tokens in this period.",
+      "noRepository": "No repository"
+    },
+    "column": {
+      "repository": "Repository",
+      "sha": "Commit",
+      "subject": "Subject",
+      "date": "Date",
+      "additions": "+ lines",
+      "deletions": "− lines",
+      "tokens": "Tokens",
+      "computedCost": "Computed cost",
+      "reportedCost": "Reported cost",
+      "sessions": "Sessions",
+      "pullRequest": "PR",
+      "commits": "Commits",
+      "tokensPerNetLine": "Tokens per net line",
+      "started": "Session start",
+      "agent": "Agent",
+      "hadCommits": "Had commits"
+    },
+    "additions": "+{{value}}",
+    "deletions": "−{{value}}",
+    "pullRequestNumber": "#{{number}}",
+    "noPullRequest": "—",
+    "noCost": "—",
+    "notApplicable": "n/a",
+    "yes": "Yes",
+    "no": "No"
   }
 }

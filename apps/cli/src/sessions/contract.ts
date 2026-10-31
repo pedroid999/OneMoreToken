@@ -66,6 +66,19 @@ export interface SessionChild extends SessionStats {
   agent: string;
   startedAt: string;
 }
+/** A commit some turns of the session are attributed to (Phase 4 L13, L20). */
+export interface SessionCommit {
+  /** Display name: the basename of the repository toplevel. */
+  repo: string;
+  /** Short sha (7 characters). */
+  sha: string;
+  subject: string;
+  authoredAt: string;
+  additions: number;
+  deletions: number;
+  /** input + output + cache read + cache write of this session's turns attributed to it. */
+  tokens: number;
+}
 export interface SessionDetail {
   /** Stats cover every turn of the session. */
   session: SessionItem;
@@ -75,4 +88,6 @@ export interface SessionDetail {
   parent: { id: string; agent: string | null } | null;
   children: SessionChild[];
   pricing: SessionPricing;
+  /** One per sha (clones of a repository count once), oldest authored first. */
+  commits: SessionCommit[];
 }

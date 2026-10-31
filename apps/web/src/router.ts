@@ -31,7 +31,7 @@ export const ROUTES: readonly Route[] = [
   { id: "session", path: "/session", labelKey: "nav.session" },
   { id: "profiles", path: "/profiles", labelKey: "nav.profiles" },
   { id: "agents", path: "/agents", labelKey: "nav.agents", phase: 2 },
-  { id: "git", path: "/git", labelKey: "nav.git", phase: 4 },
+  { id: "git", path: "/git", labelKey: "nav.git" },
   { id: "tools", path: "/tools", labelKey: "nav.tools", phase: 2 },
   { id: "sql", path: "/sql", labelKey: "nav.sql", phase: 4 },
   { id: "settings", path: "/settings", labelKey: "nav.settings" },
