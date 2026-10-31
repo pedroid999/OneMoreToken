@@ -117,6 +117,23 @@ describe("POST /api/ingest", () => {
       expect(await db.all(`SELECT * FROM ${table}`)).toEqual([]);
   });
 
+  it("still answers and recomputes derived attribution when the git sync fails", async () => {
+    await writeFile(join(root, "session.jsonl"), content);
+    await db.run("INSERT INTO turn_commits VALUES ('stale-turn', '/synthetic/repo', 'abc')");
+    const failing = createApp(db, {
+      ingest: {
+        roots: [{ agent: "pi", path: root }],
+        now: () => now,
+        syncGit: () => Promise.reject(new Error("git sync failed")),
+      },
+    });
+    const res = await post(failing);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(metrics(1));
+    // The derived rewrites after the git sync still ran: the stale row is gone.
+    expect(await db.all("SELECT * FROM turn_commits")).toEqual([]);
+  });
+
   it("reparses append/rewrite snapshots, counts a corrupt middle row and continues", async () => {
     const path = join(root, "session.jsonl");
     await writeFile(path, content);
