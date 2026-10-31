@@ -169,6 +169,23 @@ export const CommitSchema = z.object({
   deletions: nullable(z.number().int().nonnegative()),
 });
 
+export const SessionRepoSchema = z.object({
+  session_id: id,
+  repo: z.string().min(1),
+});
+
+export const CommitPullRequestSchema = z.object({
+  repo: z.string().min(1),
+  sha: CommitSchema.shape.sha,
+  pr_number: z.number().int().positive(),
+});
+
+export const TurnCommitSchema = z.object({
+  turn_id: id,
+  repo: z.string().min(1),
+  sha: CommitSchema.shape.sha,
+});
+
 export const IngestIssueSchema = z.object({
   id,
   source_id: nullable(id),
@@ -198,6 +215,9 @@ export const TABLE_SCHEMAS = {
   subscription_rules: SubscriptionRuleSchema,
   turn_profile_bindings: TurnProfileBindingSchema,
   provider_quota_readings: ProviderQuotaReadingSchema,
+  session_repos: SessionRepoSchema,
+  commit_pull_requests: CommitPullRequestSchema,
+  turn_commits: TurnCommitSchema,
 } as const;
 
 export type TableName = keyof typeof TABLE_SCHEMAS;

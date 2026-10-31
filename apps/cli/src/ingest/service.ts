@@ -28,11 +28,13 @@ import {
   ingestSource,
   loadPricing,
   readProfilesFile,
+  recomputeCommitAttribution,
   recomputeProfileAttribution,
   type SourceParser,
   upsertProfiles,
 } from "@omt/core";
 import { withDatabase } from "../db-queue";
+import { syncGitRepos } from "../git/sync";
 import { type IngestAgent, type IngestOptions, validateIngestOptions } from "../ingest-options";
 
 /** POST /api/ingest response. All counters are nonnegative integers for this request only.
@@ -384,8 +386,11 @@ export function ingestSessions(
         failure();
       }
     }
-    // Derived: rewritten in full after every ingest, whatever changed (L10).
+    // Read-only git links of the sessions' repositories (Phase 4 L14); never counted in metrics.
+    await syncGitRepos(db);
+    // Derived: rewritten in full after every ingest, whatever changed (L10, Phase 4 L14 (3)).
     await recomputeProfileAttribution(db);
+    await recomputeCommitAttribution(db);
     return metrics;
   });
 }

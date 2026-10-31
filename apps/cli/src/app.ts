@@ -15,6 +15,7 @@ import {
 import { withDatabase } from "./db-queue";
 import { isJsonRequest, readBoundedJson } from "./explorer/http";
 import { parseExplorerQuery, readExplorer } from "./explorer/service";
+import { readGit } from "./git/service";
 import { readIngestJson, safeIngestOrigin } from "./ingest/http";
 import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
 import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
@@ -289,6 +290,17 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       return c.json(await readProfiles(db, { period, configPath: subscriptionsConfigPath }));
     } catch {
       return c.json({ error: "profiles unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/git", async (c) => {
+    const period = summaryPeriod(new URL(c.req.url).searchParams, quotasNow());
+    if (!period) return c.json({ error: "invalid git period" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readGit(db, period));
+    } catch {
+      return c.json({ error: "git unavailable" }, 500);
     }
   });
 
