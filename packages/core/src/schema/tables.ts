@@ -149,6 +149,16 @@ export const CalibrationSchema = z.object({
   note: nullable(z.string()),
 });
 
+export const ProviderQuotaReadingSchema = z.object({
+  id,
+  source_id: id,
+  origin: z.literal("codex"),
+  window_kind: z.enum(["five_hours", "weekly"]),
+  observed_at: timestamp,
+  observed_pct: z.number().min(0).max(100),
+  resets_at: timestamp,
+});
+
 export const CommitSchema = z.object({
   repo: z.string().min(1),
   sha: z.string().regex(/^[0-9a-f]{7,64}$/),
@@ -187,6 +197,7 @@ export const TABLE_SCHEMAS = {
   ingest_issues: IngestIssueSchema,
   subscription_rules: SubscriptionRuleSchema,
   turn_profile_bindings: TurnProfileBindingSchema,
+  provider_quota_readings: ProviderQuotaReadingSchema,
 } as const;
 
 export type TableName = keyof typeof TABLE_SCHEMAS;

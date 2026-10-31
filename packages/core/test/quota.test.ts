@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { SubscriptionsFile } from "../src/data/files";
-import { computeQuotas, type QuotaInput, type QuotaTurn } from "../src/quota/engine";
+import {
+  computeQuotas,
+  latestProviderReadings,
+  type ProviderQuotaReading,
+  type QuotaInput,
+  type QuotaTurn,
+} from "../src/quota/engine";
 import type { CalibrationEntry } from "../src/subscriptions/calibrations";
 
 const plans: SubscriptionsFile = {
@@ -278,6 +284,96 @@ describe("computeQuotas calibration", () => {
     expect(five.limitUsd).toBe(10);
     expect(five.calibration.readings[0]).toMatchObject({ predictedPct: null, deltaPct: null });
     expect(five.calibration.meanAbsoluteDeviationPct).toBeNull();
+  });
+
+  const provider = (
+    id: string,
+    observedAt: string,
+    observedPct: number,
+    resetsAt: string,
+  ): ProviderQuotaReading => ({
+    id,
+    subscriptionId: "est",
+    windowKind: "five_hours",
+    observedAt,
+    observedPct,
+    resetsAt,
+    origin: "codex",
+  });
+  // Codex repeats rate limits on every token count: one burst of a window, a reset time that
+  // jitters by a second, and a reading taken after its own reset.
+  const providerReadings = [
+    provider("p1", "2026-10-10T01:00:00Z", 10, "2026-10-10T05:00:00Z"),
+    provider("p2", "2026-10-10T03:00:00Z", 35, "2026-10-10T05:00:00Z"),
+    provider("late", "2026-10-10T05:30:00Z", 99, "2026-10-10T05:00:00Z"),
+    provider("p3a", "2026-10-10T12:30:00Z", 39, "2026-10-10T17:00:01Z"),
+    provider("p3", "2026-10-10T13:00:00Z", 40, "2026-10-10T17:00:00Z"),
+  ];
+
+  it("keeps the latest provider reading of each window instance, before it ends", () => {
+    expect(latestProviderReadings(providerReadings).map((r) => r.id)).toEqual(["p2", "p3"]);
+    expect(latestProviderReadings([])).toEqual([]);
+  });
+
+  it("keeps overlapping weekly instances apart and only merges reset times seconds apart", () => {
+    // Real Codex resets jitter by up to a few seconds within one window, while the next weekly
+    // window may reset days (less than a week) later.
+    const weekly = (id: string, observedAt: string, resetsAt: string) => ({
+      ...provider(id, observedAt, 10, resetsAt),
+      windowKind: "weekly" as const,
+    });
+    const kept = latestProviderReadings([
+      weekly("w1", "2026-10-23T10:00:00Z", "2026-10-29T19:43:50Z"),
+      weekly("w2a", "2026-10-27T07:00:00Z", "2026-11-03T07:15:08Z"),
+      weekly("w2", "2026-10-27T17:00:00Z", "2026-11-03T07:15:11Z"),
+      weekly("w3", "2026-10-30T14:00:00Z", "2026-11-05T07:59:15Z"),
+    ]);
+    expect(kept.map((r) => r.id)).toEqual(["w1", "w2", "w3"]);
+  });
+
+  it("merges provider readings with the manual ones and reports their origin", () => {
+    const report = computeQuotas(
+      input({
+        subscriptions: [est],
+        turns,
+        calibrations: [reading("a", "2026-10-10T07:00:00Z", 25)],
+        providerReadings,
+      }),
+    );
+    const five = kind(report, "est", "five_hours");
+    // Implied limits: p2 7 / 35% = 20, a 3 / 25% = 12, p3 4 / 40% = 10; median 12.
+    expect(five.limitSource).toBe("calibrated");
+    expect(five.limitUsd).toBeCloseTo(12);
+    expect(five.calibration.readings.map((r) => [r.id, r.origin, r.usedUsd])).toEqual([
+      ["p2", "codex", 7],
+      ["a", "manual", 3],
+      ["p3", "codex", 4],
+    ]);
+    // Leave-one-out for a: median of 20 and 10 is 15, so 3 / 15 = 20%.
+    expect(five.calibration.readings[1]?.predictedPct).toBeCloseTo(20);
+  });
+
+  it("ignores provider readings of other subscriptions and keeps manual-only results", () => {
+    const manualOnly = computeQuotas(
+      input({
+        subscriptions: [est],
+        turns,
+        calibrations: [reading("a", "2026-10-10T07:00:00Z", 25)],
+      }),
+    );
+    const withOthers = computeQuotas(
+      input({
+        subscriptions: [est],
+        turns,
+        calibrations: [reading("a", "2026-10-10T07:00:00Z", 25)],
+        providerReadings: providerReadings.map((r) => ({ ...r, subscriptionId: "other" })),
+      }),
+    );
+    expect(withOthers).toEqual(manualOnly);
+    expect(kind(manualOnly, "est", "five_hours").calibration.readings[0]).toMatchObject({
+      id: "a",
+      origin: "manual",
+    });
   });
 });
 

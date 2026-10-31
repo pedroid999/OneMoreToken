@@ -6,6 +6,7 @@ import {
   syncCalibrations,
 } from "@omt/core";
 import { type Context, Hono } from "hono";
+import { listCalibrations } from "./calibrations/list";
 import {
   CalibrationError,
   createCalibrationStore,
@@ -218,7 +219,9 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
   app.get("/api/calibrations", async (c) => {
     c.header("Cache-Control", "no-store");
     try {
-      return c.json({ calibrations: await calibrations.list() });
+      return c.json({
+        calibrations: await listCalibrations(db, calibrations, subscriptionsConfigPath),
+      });
     } catch (error) {
       return calibrationFailure(c, error);
     }

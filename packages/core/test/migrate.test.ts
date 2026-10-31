@@ -23,6 +23,7 @@ const SPEC_TABLES = [
   "ingest_issues",
   "subscription_rules",
   "turn_profile_bindings",
+  "provider_quota_readings",
 ];
 
 const scratch: string[] = [];
@@ -47,7 +48,7 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(await tableNames(db)).toEqual(
       [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
     );
@@ -63,7 +64,7 @@ describe("migrate", () => {
     const ledger = await db.all<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5, 6, 7]);
     db.close();
   });
 
@@ -76,13 +77,18 @@ describe("migrate", () => {
     await migrate(db, dir);
     expect(await tableNames(db)).toEqual(
       [
-        ...SPEC_TABLES.filter((t) => t !== "subscription_rules" && t !== "turn_profile_bindings"),
+        ...SPEC_TABLES.filter(
+          (t) =>
+            t !== "subscription_rules" &&
+            t !== "turn_profile_bindings" &&
+            t !== "provider_quota_readings",
+        ),
         "schema_migrations",
       ].sort(),
     );
     await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
     const before = await db.all("SELECT * FROM sources");
-    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5, 6]);
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5, 6, 7]);
     expect(await db.all("SELECT * FROM sources")).toEqual(before);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
     db.close();
@@ -99,7 +105,7 @@ describe("migrate", () => {
     await db.run("INSERT INTO usage VALUES ('turn', 1, 2, 3, 4, 0, 5)");
     const usage = await db.all("SELECT * FROM usage");
     const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4, 5, 6]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4, 5, 6, 7]);
     expect(await db.all("SELECT * FROM usage")).toEqual(usage);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
       checkpoints.map((row) => ({ ...row, pricing_hash: null })),
@@ -122,7 +128,7 @@ describe("migrate", () => {
     );
     const sessions = await db.all("SELECT * FROM sessions");
     const turns = await db.all("SELECT * FROM turns");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4, 5, 6]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4, 5, 6, 7]);
     expect(await db.all("SELECT * FROM sessions")).toEqual(
       sessions.map((row) => ({ ...row, parent_session_id: null })),
     );
@@ -140,6 +146,35 @@ describe("migrate", () => {
     );
     expect(views.map((v) => v.table_name)).toEqual(["turn_subscriptions"]);
     expect(await db.all("SELECT * FROM turn_subscriptions")).toEqual([]);
+    db.close();
+  });
+
+  it("upgrades version 6 adding an empty provider readings table and keeping calibrations", async () => {
+    const dir = temp("omt-readings-upgrade-");
+    for (const migration of listMigrations().filter((entry) => entry.version <= 6)) {
+      writeFileSync(join(dir, migration.name), readFileSync(migration.path, "utf8"));
+    }
+    const db = await openDatabase(":memory:");
+    await migrate(db, dir);
+    await db.run(
+      "INSERT INTO calibrations VALUES ('m', 'plus', 'weekly', '2026-10-20T09:00:00Z', 10, NULL)",
+    );
+    const calibrations = await db.all("SELECT * FROM calibrations");
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([7]);
+    expect(await db.all("SELECT * FROM calibrations")).toEqual(calibrations);
+    expect(await db.all("SELECT * FROM provider_quota_readings")).toEqual([]);
+    for (const [kind, pct, origin] of [
+      ["monthly", 10, "codex"],
+      ["weekly", 101, "codex"],
+      ["weekly", 10, "manual"],
+    ] as const) {
+      await expect(
+        db.run(
+          "INSERT INTO provider_quota_readings VALUES ('r', 'src', $1, $2, '2026-10-20T09:00:00Z', $3, '2026-10-20T14:00:00Z')",
+          [origin, kind, pct],
+        ),
+      ).rejects.toThrow();
+    }
     db.close();
   });
 

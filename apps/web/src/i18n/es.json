@@ -173,10 +173,16 @@
       "predicted": "Previsto",
       "delta": "Desviación",
       "note": "Nota",
+      "origin": "Origen",
+      "origins": {
+        "manual": "Manual",
+        "codex": "Codex"
+      },
       "actions": "Acciones",
       "delete": "Borrar",
       "deleteNamed": "Borrar la lectura de {{window}} del {{time}}",
-      "deleteError": "La calibración no se ha borrado. Revisa la API local y vuelve a intentarlo."
+      "deleteError": "La calibración no se ha borrado. Revisa la API local y vuelve a intentarlo.",
+      "readOnly": "Solo lectura: la informa Codex"
     },
     "deviation": {
       "title": "Desviación histórica",

@@ -292,6 +292,7 @@ export function CalibrationSection(props: CalibrationSectionProps) {
                   {t("burnRate.readings.delta")}
                 </th>
                 <th scope="col">{t("burnRate.readings.note")}</th>
+                <th scope="col">{t("burnRate.readings.origin")}</th>
                 <th scope="col">{t("burnRate.readings.actions")}</th>
               </tr>
             </thead>
@@ -299,6 +300,8 @@ export function CalibrationSection(props: CalibrationSectionProps) {
               {readings.map((entry) => {
                 const prediction = predictions.get(entry.id);
                 const time = format.format(new Date(entry.observedAt));
+                // Codex readings are derived from agent data: listed, never deleted here (L8).
+                const codex = entry.origin === "codex";
                 return (
                   <tr key={entry.id}>
                     <td>{windowName(entry.windowKind)}</td>
@@ -327,17 +330,22 @@ export function CalibrationSection(props: CalibrationSectionProps) {
                       )}
                     </td>
                     <td>{entry.note ?? t("session.noValue")}</td>
+                    <td>{t(`burnRate.readings.origins.${codex ? "codex" : "manual"}`)}</td>
                     <td>
-                      <Button
-                        variant="danger"
-                        aria-label={t("burnRate.readings.deleteNamed", {
-                          window: windowName(entry.windowKind),
-                          time,
-                        })}
-                        onClick={() => remove(entry)}
-                      >
-                        {t("burnRate.readings.delete")}
-                      </Button>
+                      {codex ? (
+                        <span className="quota__muted">{t("burnRate.readings.readOnly")}</span>
+                      ) : (
+                        <Button
+                          variant="danger"
+                          aria-label={t("burnRate.readings.deleteNamed", {
+                            window: windowName(entry.windowKind),
+                            time,
+                          })}
+                          onClick={() => remove(entry)}
+                        >
+                          {t("burnRate.readings.delete")}
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );

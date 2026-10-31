@@ -704,8 +704,8 @@ describe("POST /api/ingest for Codex", () => {
     expect(await first.json()).toEqual(metrics(2, 2, 0, 0, 2));
     expect(await readdir(root, { recursive: true })).toEqual(before);
     expect(await sessions()).toEqual([
-      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/1" },
-      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/1" },
+      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/2" },
+      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/2" },
     ]);
     expect(await db.all("SELECT role, provider, effort FROM subagent_runs")).toEqual([
       { role: "explorer", provider: "openai", effort: "high" },
@@ -723,11 +723,100 @@ describe("POST /api/ingest for Codex", () => {
     const day = await install(false);
     await post(codex());
     expect(await sessions()).toEqual([
-      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/1" },
+      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/2" },
     ]);
     await writeFile(join(day, parentName), await readFile(join(fixtures, "rollout.jsonl")));
     expect(await (await post(codex())).json()).toEqual(metrics(2, 2, 0, 0, 2));
     expect((await sessions()).map((row) => row.root)).toEqual([true, false]);
+  });
+
+  const readings = () =>
+    db.all(
+      `SELECT r.origin, r.window_kind, r.observed_pct, epoch_ms(r.resets_at) AS resets_ms,
+        r.source_id = c.id AS parent_source
+       FROM provider_quota_readings r
+       LEFT JOIN sources c ON c.path LIKE '%' || $1
+       ORDER BY r.window_kind`,
+      [parentName],
+    );
+
+  it("stores Codex rate limits per source, replaced on re-ingest and kept when skipped", async () => {
+    const day = await install();
+    await post(codex());
+    const first = [
+      {
+        origin: "codex",
+        window_kind: "five_hours",
+        observed_pct: 12,
+        resets_ms: 1792504800000n,
+        parent_source: true,
+      },
+      {
+        origin: "codex",
+        window_kind: "weekly",
+        observed_pct: 4,
+        resets_ms: 1793000000000n,
+        parent_source: true,
+      },
+    ];
+    expect(await readings()).toEqual(first);
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 0, 2));
+    expect(await readings()).toEqual(first);
+    const parent = join(day, parentName);
+    await writeFile(
+      parent,
+      (await readFile(parent, "utf8")).replace('"used_percent":12.0', '"used_percent":30.0'),
+    );
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 1, 1, 0, 2));
+    expect(await readings()).toEqual([{ ...first[0], observed_pct: 30 }, first[1]]);
+  });
+
+  it("links a child to a parent in another day directory when --path points at one day", async () => {
+    await mkdir(join(root, "2026", "10", "19"), { recursive: true });
+    await writeFile(
+      join(root, "2026", "10", "19", parentName),
+      await readFile(join(fixtures, "rollout.jsonl")),
+    );
+    const day = await install(false);
+    const response = await post(app({ ingest: { roots: [], now: () => now } }), {
+      agent: "codex",
+      path: day,
+    });
+    expect(await response.json()).toEqual(metrics(1, 1, 0, 0, 0));
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/2" },
+    ]);
+  });
+
+  it("links a child to a parent in another day directory when --path ends with a slash", async () => {
+    await mkdir(join(root, "2026", "10", "19"), { recursive: true });
+    await writeFile(
+      join(root, "2026", "10", "19", parentName),
+      await readFile(join(fixtures, "rollout.jsonl")),
+    );
+    const day = await install(false);
+    await post(app({ ingest: { roots: [], now: () => now } }), {
+      agent: "codex",
+      path: `${day}/`,
+    });
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/2" },
+    ]);
+  });
+
+  it("re-links an older child with --since when its parent rollout is newer", async () => {
+    const day = await install(false);
+    await post(codex());
+    const old = new Date("2026-10-01T00:00:00Z");
+    await utimes(join(day, childName), old, old);
+    await writeFile(join(day, parentName), await readFile(join(fixtures, "rollout.jsonl")));
+    const response = await post(codex(), { since: "2026-10-15T00:00:00Z" });
+    expect(await response.json()).toEqual(metrics(2, 2, 0, 0, 2));
+    expect((await sessions()).map((row) => row.root)).toEqual([true, false]);
+    // Without a newer parent, an older child stays outside --since.
+    expect(await (await post(codex(), { since: "2999-01-01T00:00:00Z" })).json()).toEqual(
+      metrics(0, 0, 0),
+    );
   });
 
   it("discovers Codex under ~/.codex/sessions and accepts --agent codex", async () => {

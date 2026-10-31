@@ -107,6 +107,22 @@ export function defaultIngestRoots(
   ];
 }
 
+/** The Codex sessions root of a walked path: `--path` may point at a `YYYY[/MM[/DD]]` directory
+ * below it, while parent rollouts can live under any other day (L6a). */
+export function codexSessionsRoot(path: string): string {
+  // `normalize` keeps a trailing separator (shell completion adds one): drop empty tail segments.
+  const parts = path.split(sep);
+  while (parts.length > 1 && parts.at(-1) === "") parts.pop();
+  const pattern = [/^\d{4}$/, /^\d{2}$/, /^\d{2}$/];
+  for (let depth = 3; depth > 0; depth--) {
+    const tail = parts.slice(-depth);
+    if (parts.length > depth + 1 && tail.every((part, index) => pattern[index]?.test(part))) {
+      return parts.slice(0, -depth).join(sep);
+    }
+  }
+  return path;
+}
+
 /** One whole-file read at a time; changed/appending files are replaced atomically on the next run.
  * The complete request, not each file, owns the database queue (spec §3, §10, §11.1).
  */
@@ -172,7 +188,7 @@ export function ingestSessions(
         failure();
       }
     };
-    // Codex rollouts are named `rollout-<ts>-<thread id>.jsonl` (D1); one index per walked root.
+    // Codex rollouts are named `rollout-<ts>-<thread id>.jsonl` (D1); one index per sessions root.
     const codexThreads = new Map<string, Map<string, string>>();
     const codexIndex = async (rootPath: string) => {
       const known = codexThreads.get(rootPath);
@@ -194,13 +210,32 @@ export function ingestSessions(
       }
       return index;
     };
+    const codexParent = async (rollout: string, rootPath: string) => {
+      const parentId = codexSessionMeta(rollout)?.parentId;
+      return parentId ? (await codexIndex(codexSessionsRoot(rootPath))).get(parentId) : undefined;
+    };
     const file = async (path: string, agent: IngestAgent, info: Stats, rootPath: string) => {
-      if (info.mtimeMs < since) return;
-      if (agent !== "codex") return ingest(path, agent, () => fs.readFile(path));
+      if (agent !== "codex") {
+        if (info.mtimeMs < since) return;
+        return ingest(path, agent, () => fs.readFile(path));
+      }
+      if (info.mtimeMs < since) {
+        // An older child is still re-ingested when its parent rollout changed since `since`, so it
+        // links to a parent that appeared later (L6c). Reading it never writes or locks it.
+        let rollout: string;
+        try {
+          rollout = await fs.readFile(path);
+        } catch {
+          return failure();
+        }
+        const parentPath = await codexParent(rollout, rootPath);
+        const parent = parentPath ? await fs.lstat(parentPath).catch(() => null) : null;
+        if (!parentPath || !parent || parent.mtimeMs < since) return;
+        return ingest(path, agent, async () => createCodexDocument({ rollout, parentPath }));
+      }
       await ingest(path, agent, async () => {
         const rollout = await fs.readFile(path);
-        const parentId = codexSessionMeta(rollout)?.parentId;
-        const parentPath = parentId ? (await codexIndex(rootPath)).get(parentId) : undefined;
+        const parentPath = await codexParent(rollout, rootPath);
         return parentPath ? createCodexDocument({ rollout, parentPath }) : rollout;
       });
     };

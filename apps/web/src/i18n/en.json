@@ -173,10 +173,16 @@
       "predicted": "Predicted",
       "delta": "Deviation",
       "note": "Note",
+      "origin": "Origin",
+      "origins": {
+        "manual": "Manual",
+        "codex": "Codex"
+      },
       "actions": "Actions",
       "delete": "Delete",
       "deleteNamed": "Delete the {{window}} reading of {{time}}",
-      "deleteError": "The calibration was not deleted. Check the local API and retry."
+      "deleteError": "The calibration was not deleted. Check the local API and retry.",
+      "readOnly": "Read-only: reported by Codex"
     },
     "deviation": {
       "title": "Historical deviation",
