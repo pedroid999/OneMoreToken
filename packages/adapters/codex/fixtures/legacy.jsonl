@@ -1,0 +1,4 @@
+{"id":"legacy-thread","timestamp":"2025-09-10T14:37:39.000Z","instructions":"PRIVATE"}
+{"record_type":"state"}
+{"type":"message","role":"user","content":[{"type":"input_text","text":"PRIVATE PROMPT"}]}
+{"type":"function_call","name":"shell","arguments":"PRIVATE","call_id":"call-legacy"}

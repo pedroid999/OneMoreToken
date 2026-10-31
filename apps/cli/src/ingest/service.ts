@@ -4,6 +4,9 @@ import { homedir } from "node:os";
 import { join, normalize, parse, sep } from "node:path";
 import {
   CLAUDE_CODE_ADAPTER_VERSION,
+  CODEX_ADAPTER_VERSION,
+  codexSessionMeta,
+  createCodexDocument,
   createGentleSubagentDocument,
   GENTLE_SHELL_ADAPTER_VERSION,
   GENTLE_SHELL_SUBAGENT_ADAPTER_VERSION,
@@ -11,6 +14,7 @@ import {
   OPENCODE_ADAPTER_VERSION,
   PI_ADAPTER_VERSION,
   parseClaudeCode,
+  parseCodex,
   parseGentleShell,
   parseGentleShellSubagent,
   parseOpenCode,
@@ -75,6 +79,7 @@ const adapters = {
   "gentle-shell": { version: GENTLE_SHELL_ADAPTER_VERSION, parse: parseGentleShell },
   pi: { version: PI_ADAPTER_VERSION, parse: parsePi },
   opencode: { version: OPENCODE_ADAPTER_VERSION, parse: parseOpenCode },
+  codex: { version: CODEX_ADAPTER_VERSION, parse: parseCodex },
 };
 const sourceFs: IngestFileSystem = {
   lstat,
@@ -98,6 +103,7 @@ export function defaultIngestRoots(
     },
     { agent: "pi", path: join(home, ".pi", "agent", "sessions") },
     { agent: "opencode", path: join(dataHome, "opencode") },
+    { agent: "codex", path: join(home, ".codex", "sessions") },
   ];
 }
 
@@ -166,9 +172,37 @@ export function ingestSessions(
         failure();
       }
     };
-    const file = async (path: string, agent: IngestAgent, info: Stats) => {
+    // Codex rollouts are named `rollout-<ts>-<thread id>.jsonl` (D1); one index per walked root.
+    const codexThreads = new Map<string, Map<string, string>>();
+    const codexIndex = async (rootPath: string) => {
+      const known = codexThreads.get(rootPath);
+      if (known) return known;
+      const index = new Map<string, string>();
+      codexThreads.set(rootPath, index);
+      const pending = [rootPath];
+      for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
+        const entries = await fs.readdir(dir).catch(() => [] as Dirent[]);
+        for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+          if (entry.isSymbolicLink()) continue;
+          const child = join(dir, entry.name);
+          if (entry.isDirectory()) pending.push(child);
+          const native = entry.isFile()
+            ? /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(.+)\.jsonl$/.exec(entry.name)?.[1]
+            : undefined;
+          if (native && !index.has(native)) index.set(native, child);
+        }
+      }
+      return index;
+    };
+    const file = async (path: string, agent: IngestAgent, info: Stats, rootPath: string) => {
       if (info.mtimeMs < since) return;
-      await ingest(path, agent, () => fs.readFile(path));
+      if (agent !== "codex") return ingest(path, agent, () => fs.readFile(path));
+      await ingest(path, agent, async () => {
+        const rollout = await fs.readFile(path);
+        const parentId = codexSessionMeta(rollout)?.parentId;
+        const parentPath = parentId ? (await codexIndex(rootPath)).get(parentId) : undefined;
+        return parentPath ? createCodexDocument({ rollout, parentPath }) : rollout;
+      });
     };
     // One virtual source per session (`<root>/sessions/<id>`); the reader never writes or locks.
     const opencode = async (path: string) => {
@@ -266,7 +300,7 @@ export function ingestSessions(
         );
       }
     };
-    const walk = async (path: string, agent: IngestAgent): Promise<void> => {
+    const walk = async (path: string, agent: IngestAgent, rootPath = path): Promise<void> => {
       let entries: Dirent[];
       try {
         entries = await fs.readdir(path);
@@ -281,8 +315,9 @@ export function ingestSessions(
         try {
           const info = await fs.lstat(child);
           if (info.isSymbolicLink()) continue;
-          if (info.isDirectory()) await walk(child, agent);
-          else if (info.isFile() && child.endsWith(".jsonl")) await file(child, agent, info);
+          if (info.isDirectory()) await walk(child, agent, rootPath);
+          else if (info.isFile() && child.endsWith(".jsonl"))
+            await file(child, agent, info, rootPath);
         } catch {
           failure();
         }
