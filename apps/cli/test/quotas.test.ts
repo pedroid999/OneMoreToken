@@ -185,6 +185,9 @@ describe("/api/quotas", () => {
     expect(claude?.limitSource).toBe("calibrated");
     expect(claude?.limitUsd).toBe(10);
     expect(claude?.windows[0]).toMatchObject({ estimatedPct: 20 });
+    expect(
+      (claude as unknown as { calibration: { readings: unknown[] } }).calibration.readings,
+    ).toEqual([expect.objectContaining({ id: "r1", origin: "manual" })]);
 
     expect(await db.all("SELECT id, observed_pct FROM calibrations")).toEqual([
       { id: "r1", observed_pct: 20 },
@@ -205,6 +208,60 @@ describe("/api/quotas", () => {
       limit_usd: 10,
       estimated_pct: 20,
     });
+  });
+
+  it("calibrates a Codex subscription with the latest provider reading per window", async () => {
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        version: 1,
+        subscriptions: [
+          {
+            id: "plus",
+            planId: "chatgpt-plus",
+            startedAt: "2026-10-01",
+            match: [{ provider: "openai", agent: "codex" }],
+          },
+        ],
+      }),
+    );
+    await db.run(
+      `INSERT INTO sessions (id, source_id, agent, started_at, format_version) VALUES
+        ('cx', 'src', 'codex', '2026-10-10T10:00:00Z', 'codex-rollout/1')`,
+    );
+    await db.run(
+      `INSERT INTO turns (id, session_id, idx, role, ts, provider) VALUES
+        ('cx-1', 'cx', 0, 'assistant', '2026-10-10T10:00:00Z', 'openai'),
+        ('cx-2', 'cx', 1, 'assistant', '2026-10-10T10:30:00Z', 'openai')`,
+    );
+    await db.run(
+      `INSERT INTO usage (turn_id, input_tokens, output_tokens, computed_cost_usd) VALUES
+        ('cx-1', 10, 0, 4), ('cx-2', 10, 0, 2)`,
+    );
+    await db.run(
+      `INSERT INTO provider_quota_readings VALUES
+        ('r1', 'src', 'codex', 'five_hours', '2026-10-10T10:15:00Z', 10, '2026-10-10T15:00:00Z'),
+        ('r2', 'src', 'codex', 'five_hours', '2026-10-10T10:45:00Z', 30, '2026-10-10T15:00:00Z'),
+        ('w1', 'src', 'codex', 'weekly', '2026-10-10T10:45:00Z', 3, '2026-10-15T00:00:00Z'),
+        ('r0', 'src', 'codex', 'five_hours', '2026-09-30T10:00:00Z', 50, '2026-09-30T15:00:00Z')`,
+    );
+    const body = (await (await get()).json()) as Body & {
+      subscriptions: { windows: { calibration: { readings: Record<string, unknown>[] } }[] }[];
+    };
+    const five = kind(body, "plus", "five_hours") as (typeof body.subscriptions)[0]["windows"][0] &
+      Body["subscriptions"][0]["windows"][0];
+    // r2: 6 USD at 30% implies a 20 USD limit; r1 is an earlier reading of the same window and r0
+    // predates the subscription, so neither counts.
+    expect(five.limitSource).toBe("calibrated");
+    expect(five.limitUsd).toBeCloseTo(20);
+    expect(five.calibration.readings).toEqual([
+      expect.objectContaining({ id: "r2", origin: "codex", observedPct: 30, usedUsd: 6 }),
+    ]);
+    const weekly = kind(body, "plus", "weekly") as typeof five;
+    expect(weekly.limitUsd).toBeCloseTo(200);
+    expect(weekly.calibration.readings.map((r) => [r.id, r.origin])).toEqual([["w1", "codex"]]);
+    // Derived data only: nothing is mirrored into the manual calibrations table.
+    expect(await db.all("SELECT * FROM calibrations")).toEqual([]);
   });
 
   it("follows config edits without a re-ingest", async () => {

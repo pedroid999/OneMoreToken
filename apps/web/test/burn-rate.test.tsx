@@ -448,6 +448,40 @@ describe("Burn rate (S3, S4, S9)", () => {
     expect(await within(form).findByText(en.burnRate.calibration.errors.rejected)).toBeTruthy();
   });
 
+  it("shows the origin of each reading and keeps Codex readings read-only", async () => {
+    calibrationsBody = () =>
+      json({
+        calibrations: [
+          ...entries().map((entry) => ({ ...entry, origin: "manual" })),
+          {
+            id: "codex-1",
+            subscriptionId: "claude-pro",
+            windowKind: "five_hours",
+            observedAt: "2026-01-07T22:00:00.000Z",
+            observedPct: 40,
+            origin: "codex",
+          },
+        ],
+      });
+    await view();
+    const claudeRegion = await region("Claude Pro");
+    const table = within(claudeRegion).getByRole("table", { name: en.burnRate.readings.title });
+    const rows = within(table).getAllByRole("row").slice(1);
+    const codexRows = rows.filter((row) =>
+      row.textContent?.includes(en.burnRate.readings.origins.codex),
+    );
+    expect(codexRows).toHaveLength(1);
+    const codexRow = codexRows[0] as HTMLElement;
+    expect(codexRow.textContent).toContain(en.burnRate.readings.readOnly);
+    expect(within(codexRow).queryByRole("button")).toBeNull();
+    const manualRows = rows.filter((row) => row !== codexRow);
+    expect(manualRows.length).toBeGreaterThan(0);
+    for (const row of manualRows) {
+      expect(row.textContent).toContain(en.burnRate.readings.origins.manual);
+      expect(within(row).getByRole("button", { name: /^Delete the/ })).toBeTruthy();
+    }
+  });
+
   it("deletes a reading and refetches", async () => {
     await view();
     const claudeRegion = await region("Claude Pro");

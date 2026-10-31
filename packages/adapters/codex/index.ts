@@ -13,7 +13,8 @@ import {
   UsageSchema,
 } from "@omt/core";
 
-export const CODEX_ADAPTER_VERSION = "codex/1";
+/** codex/2: batches also carry the provider's `rate_limits` readings (Phase 4 T1b). */
+export const CODEX_ADAPTER_VERSION = "codex/2";
 /** Session format versions (spec §3): current rollouts and the 2025 layout without usage. */
 const ROLLOUT_FORMAT = "codex-rollout/1";
 const LEGACY_FORMAT = "codex-legacy/1";
@@ -332,6 +333,19 @@ export const parseCodex: SourceParser = (content, context) => {
   }
   if (batch.usage.length === 0) issue("missing_usage", null);
   batch.sessions.push({ ...session, title: null });
+  // Ids follow the reading's position in the file, stable while the rollout only grows.
+  const readings = readCodexQuotaReadings(rollout);
+  if (readings.length > 0) {
+    batch.quotaReadings = readings.map((reading, index) => ({
+      id: recordId(source.id, "quota", String(index)),
+      source_id: source.id,
+      origin: "codex",
+      window_kind: reading.windowKind,
+      observed_at: reading.observedAt,
+      observed_pct: reading.observedPct,
+      resets_at: reading.resetsAt,
+    }));
+  }
   if (parent) {
     const usage = batch.usage;
     const firstAssistant = batch.turns.find((turn) => turn.role === "assistant");

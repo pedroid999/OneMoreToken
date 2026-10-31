@@ -7,6 +7,7 @@ import {
   loadUserSubscriptions,
   type QuotaSubscriptionReport,
   type QuotaTurn,
+  readProviderQuotaReadings,
   type SubscriptionsFile,
   syncCalibrations,
   syncUserSubscriptions,
@@ -91,6 +92,8 @@ export async function readQuotas(db: Database, request: QuotasRequest): Promise<
       subscriptions: loaded.file.subscriptions,
       turns,
       calibrations: readings,
+      // Codex rate limits, derived at ingest (D2): attributed by the rules synced above.
+      providerReadings: await readProviderQuotaReadings(db),
       period: request.period,
       now: new Date(request.now).toISOString(),
     });

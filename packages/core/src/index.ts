@@ -10,3 +10,4 @@ export * from "./quota/engine";
 export * from "./schema/tables";
 export * from "./subscriptions/calibrations";
 export * from "./subscriptions/config";
+export * from "./subscriptions/provider-readings";

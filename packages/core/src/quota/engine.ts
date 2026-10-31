@@ -25,11 +25,28 @@ export interface QuotaTurn {
   tokens: number;
 }
 
+/** Where a calibration reading comes from: the user's form or the provider's own report (D2). */
+export type CalibrationOrigin = "manual" | "codex";
+
+/** A % reading reported by the provider inside agent data (Codex `rate_limits`), already
+ * attributed to a subscription. `resetsAt` is the provider's end of the window it measures. */
+export interface ProviderQuotaReading {
+  id: string;
+  subscriptionId: string;
+  windowKind: "five_hours" | "weekly";
+  observedAt: string;
+  observedPct: number;
+  resetsAt: string;
+  origin: Exclude<CalibrationOrigin, "manual">;
+}
+
 export interface QuotaInput {
   plans: SubscriptionsFile;
   subscriptions: readonly UserSubscription[];
   turns: readonly QuotaTurn[];
   calibrations: readonly CalibrationEntry[];
+  /** Provider readings; reduced to the latest one per window instance (latestProviderReadings). */
+  providerReadings?: readonly ProviderQuotaReading[];
   /** Output windows and extracted value are restricted to [from, to). */
   period: { from: string; to: string };
   now: string;
@@ -53,6 +70,7 @@ export interface QuotaWindow {
 
 export interface CalibrationReading {
   id: string;
+  origin: CalibrationOrigin;
   observedAt: string;
   observedPct: number;
   /** Consumption of the window containing the reading, up to the reading. */
@@ -195,7 +213,7 @@ function kindReport(
   turns: readonly Turn[],
   anchor: number,
   activeNow: boolean,
-  readingsIn: readonly CalibrationEntry[],
+  readingsIn: readonly (CalibrationEntry & { origin: CalibrationOrigin })[],
   from: number,
   to: number,
   now: number,
@@ -276,6 +294,7 @@ function kindReport(
     const predictedPct = predictionLimit === null ? null : (reading.value / predictionLimit) * 100;
     return {
       id: reading.entry.id,
+      origin: reading.entry.origin,
       observedAt: reading.entry.observedAt,
       observedPct: reading.entry.observedPct,
       usedUsd: reading.used.usd,
@@ -306,8 +325,54 @@ function kindReport(
   };
 }
 
+/** Codex reports one window's reset time with a few seconds of jitter (observed: up to 3 s);
+ * distinct windows reset minutes to days apart, even when they overlap (weekly). */
+const PROVIDER_RESET_JITTER_MS = 5 * 60_000;
+
+/**
+ * Codex repeats its rate limits on every token count, so one burst would outweigh every other
+ * reading. Keeps, per subscription, window kind and window instance, the latest reading observed
+ * before the instance ends. An instance is identified by the provider's reset time; resets less
+ * than one window length apart are the same instance (the next one cannot reset sooner), which
+ * absorbs a reset time that jitters between events. Output is sorted by observedAt, then id.
+ */
+export function latestProviderReadings(
+  readings: readonly ProviderQuotaReading[],
+): ProviderQuotaReading[] {
+  const groups = new Map<string, ProviderQuotaReading[]>();
+  for (const reading of readings) {
+    if (Date.parse(reading.observedAt) >= Date.parse(reading.resetsAt)) continue;
+    const key = JSON.stringify([reading.subscriptionId, reading.windowKind]);
+    groups.set(key, [...(groups.get(key) ?? []), reading]);
+  }
+  const kept: ProviderQuotaReading[] = [];
+  for (const group of groups.values()) {
+    const sorted = [...group].sort(
+      (a, b) => Date.parse(a.resetsAt) - Date.parse(b.resetsAt) || a.id.localeCompare(b.id),
+    );
+    let instanceReset = Number.NEGATIVE_INFINITY;
+    let latest: ProviderQuotaReading | undefined;
+    for (const reading of sorted) {
+      const reset = Date.parse(reading.resetsAt);
+      if (reset - instanceReset > PROVIDER_RESET_JITTER_MS) {
+        if (latest) kept.push(latest);
+        instanceReset = reset;
+        latest = undefined;
+      }
+      const at = Date.parse(reading.observedAt);
+      const best = latest ? Date.parse(latest.observedAt) : Number.NEGATIVE_INFINITY;
+      if (!latest || at > best || (at === best && reading.id > latest.id)) latest = reading;
+    }
+    if (latest) kept.push(latest);
+  }
+  return kept.sort(
+    (a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt) || a.id.localeCompare(b.id),
+  );
+}
+
 export function computeQuotas(input: QuotaInput): QuotaSubscriptionReport[] {
   const plans = new Map(input.plans.plans.map((plan) => [plan.id, plan]));
+  const providerReadings = latestProviderReadings(input.providerReadings ?? []);
   const from = Date.parse(input.period.from);
   const to = Date.parse(input.period.to);
   const now = Date.parse(input.now);
@@ -340,9 +405,12 @@ export function computeQuotas(input: QuotaInput): QuotaSubscriptionReport[] {
             ? (turn.reportedCostUsd ?? turn.computedCostUsd ?? 0)
             : (turn.computedCostUsd ?? 0),
       }));
-      const readings = input.calibrations.filter(
-        (c) => c.subscriptionId === subscription.id && c.windowKind === window.kind,
-      );
+      const mine = (c: { subscriptionId: string; windowKind: string }) =>
+        c.subscriptionId === subscription.id && c.windowKind === window.kind;
+      const readings = [
+        ...input.calibrations.filter(mine).map((c) => ({ ...c, origin: "manual" as const })),
+        ...providerReadings.filter(mine).map(({ resetsAt: _reset, ...c }) => c),
+      ];
       return kindReport(
         window.kind,
         window.limit,

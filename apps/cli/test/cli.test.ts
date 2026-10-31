@@ -296,7 +296,7 @@ describe("omt serve", () => {
     });
 
     expect(code).toBe(0);
-    expect(health).toEqual({ status: "ok", schemaVersion: 6 });
+    expect(health).toEqual({ status: "ok", schemaVersion: 7 });
     expect(existsSync(dbPath)).toBe(true);
     expect(c.err()).toBe("");
     expect(c.out()).toMatch(

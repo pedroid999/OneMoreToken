@@ -24,6 +24,26 @@ exports[`parseCodex > normalizes a rollout into metrics-only sessions, turns, us
       "source_id": "e269f8af0a157e952537499886ebb950bb8d0689d0d0f74829e2cd5b41e6c96f",
     },
   ],
+  "quotaReadings": [
+    {
+      "id": "e269f8af0a157e952537499886ebb950bb8d0689d0d0f74829e2cd5b41e6c96f:quota:5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "observed_at": "2026-10-20T09:00:05.200Z",
+      "observed_pct": 12,
+      "origin": "codex",
+      "resets_at": "2026-10-20T14:00:00.000Z",
+      "source_id": "e269f8af0a157e952537499886ebb950bb8d0689d0d0f74829e2cd5b41e6c96f",
+      "window_kind": "five_hours",
+    },
+    {
+      "id": "e269f8af0a157e952537499886ebb950bb8d0689d0d0f74829e2cd5b41e6c96f:quota:6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "observed_at": "2026-10-20T09:00:05.200Z",
+      "observed_pct": 4,
+      "origin": "codex",
+      "resets_at": "2026-10-26T07:33:20.000Z",
+      "source_id": "e269f8af0a157e952537499886ebb950bb8d0689d0d0f74829e2cd5b41e6c96f",
+      "window_kind": "weekly",
+    },
+  ],
   "sessions": [
     {
       "agent": "codex",
@@ -40,7 +60,7 @@ exports[`parseCodex > normalizes a rollout into metrics-only sessions, turns, us
     },
   ],
   "source": {
-    "adapter_version": "codex/1",
+    "adapter_version": "codex/2",
     "agent": "codex",
     "id": "e269f8af0a157e952537499886ebb950bb8d0689d0d0f74829e2cd5b41e6c96f",
     "last_ingested_at": "2026-10-21T00:00:00.000Z",
