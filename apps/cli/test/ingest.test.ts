@@ -108,6 +108,15 @@ describe("POST /api/ingest", () => {
     expect(await stored()).toEqual(snapshot);
   });
 
+  it("keeps ingest metrics unchanged and stores no git links when no session has a repo", async () => {
+    await writeFile(join(root, "session.jsonl"), content);
+    const res = await post();
+    expect(await res.json()).toEqual(metrics(1));
+    expect((await stored()).map((rows) => rows.length)).toEqual([1, 1, 1, 1, 0, 0, 1]);
+    for (const table of ["session_repos", "commits", "commit_pull_requests", "turn_commits"])
+      expect(await db.all(`SELECT * FROM ${table}`)).toEqual([]);
+  });
+
   it("reparses append/rewrite snapshots, counts a corrupt middle row and continues", async () => {
     const path = join(root, "session.jsonl");
     await writeFile(path, content);
@@ -659,6 +668,9 @@ describe("POST /api/ingest for gentle-shell subagents", () => {
     );
     expect(stored).not.toContain("PRIVATE_SENTINEL");
     expect(stored).not.toContain("origin");
+    // Fixture cwds are not repositories: no git links, attribution and metrics as before (L14).
+    for (const table of ["session_repos", "commits", "commit_pull_requests", "turn_commits"])
+      expect(await db.all(`SELECT * FROM ${table}`)).toEqual([]);
   });
 
   it("does not follow a symlinked subagent directory", async () => {

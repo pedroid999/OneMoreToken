@@ -24,6 +24,9 @@ const SPEC_TABLES = [
   "subscription_rules",
   "turn_profile_bindings",
   "provider_quota_readings",
+  "session_repos",
+  "commit_pull_requests",
+  "turn_commits",
 ];
 
 const scratch: string[] = [];
@@ -48,7 +51,7 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(await tableNames(db)).toEqual(
       [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
     );
@@ -64,7 +67,7 @@ describe("migrate", () => {
     const ledger = await db.all<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     db.close();
   });
 
@@ -81,14 +84,15 @@ describe("migrate", () => {
           (t) =>
             t !== "subscription_rules" &&
             t !== "turn_profile_bindings" &&
-            t !== "provider_quota_readings",
+            t !== "provider_quota_readings" &&
+            !["session_repos", "commit_pull_requests", "turn_commits"].includes(t),
         ),
         "schema_migrations",
       ].sort(),
     );
     await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
     const before = await db.all("SELECT * FROM sources");
-    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5, 6, 7]);
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5, 6, 7, 8]);
     expect(await db.all("SELECT * FROM sources")).toEqual(before);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
     db.close();
@@ -105,7 +109,7 @@ describe("migrate", () => {
     await db.run("INSERT INTO usage VALUES ('turn', 1, 2, 3, 4, 0, 5)");
     const usage = await db.all("SELECT * FROM usage");
     const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4, 5, 6, 7]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([3, 4, 5, 6, 7, 8]);
     expect(await db.all("SELECT * FROM usage")).toEqual(usage);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
       checkpoints.map((row) => ({ ...row, pricing_hash: null })),
@@ -128,7 +132,7 @@ describe("migrate", () => {
     );
     const sessions = await db.all("SELECT * FROM sessions");
     const turns = await db.all("SELECT * FROM turns");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4, 5, 6, 7]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([4, 5, 6, 7, 8]);
     expect(await db.all("SELECT * FROM sessions")).toEqual(
       sessions.map((row) => ({ ...row, parent_session_id: null })),
     );
@@ -160,7 +164,7 @@ describe("migrate", () => {
       "INSERT INTO calibrations VALUES ('m', 'plus', 'weekly', '2026-10-20T09:00:00Z', 10, NULL)",
     );
     const calibrations = await db.all("SELECT * FROM calibrations");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([7]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([7, 8]);
     expect(await db.all("SELECT * FROM calibrations")).toEqual(calibrations);
     expect(await db.all("SELECT * FROM provider_quota_readings")).toEqual([]);
     for (const [kind, pct, origin] of [
@@ -175,6 +179,28 @@ describe("migrate", () => {
         ),
       ).rejects.toThrow();
     }
+    db.close();
+  });
+
+  it("upgrades version 7 adding empty git link tables and keeping commits", async () => {
+    const dir = temp("omt-git-upgrade-");
+    for (const migration of listMigrations().filter((entry) => entry.version <= 7)) {
+      writeFileSync(join(dir, migration.name), readFileSync(migration.path, "utf8"));
+    }
+    const db = await openDatabase(":memory:");
+    await migrate(db, dir);
+    await db.run(
+      "INSERT INTO commits VALUES ('/synthetic/repo', 'abc1234', '2026-10-20T09:00:00Z', NULL, 'feat: x', 1, 0)",
+    );
+    const commits = await db.all("SELECT * FROM commits");
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([8]);
+    expect(await db.all("SELECT * FROM commits")).toEqual(commits);
+    for (const table of ["session_repos", "commit_pull_requests", "turn_commits"]) {
+      expect(await db.all(`SELECT * FROM ${table}`)).toEqual([]);
+    }
+    await expect(
+      db.run("INSERT INTO commit_pull_requests VALUES ('/synthetic/repo', 'abc1234', 0)"),
+    ).rejects.toThrow();
     db.close();
   });
 

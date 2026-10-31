@@ -206,6 +206,14 @@ Profiles (spec §6) are read from `~/.gentle-shell/config/gentle-ai/profiles.jso
 
 `GET /api/profiles?from&to` returns, per profile, cost and tokens total and per session, role and effort breakdowns, subscriptions drained, snapshot versions and exact vs estimated shares, plus the unattributed gentle-shell turns. Errors: 400 `invalid profiles period`, 500 `profiles unavailable`. The Explorer can group by `subscription`, `profile`, `attribution` and `role`.
 
+### Git commits and orphan tokens
+
+After each ingest, every distinct session working directory (a child session without one inherits its parent's) is resolved to its git repository with `git rev-parse --show-toplevel`; directories that are not repositories or no longer exist are skipped. Git runs read-only: no shell, no optional locks, no fetch and no network, and the repositories are never written. Per repository, `git log --branches --numstat` starts one day before its earliest session and keeps only **your** commits (author email equal to that repository's `git config user.email`): sha, author date, subject line, and added/deleted lines (binary files count 0). No author names or emails are stored. Merge commits are not stored; a local merge titled `Merge pull request #N …` assigns PR `N` to the stored commits it brings in (`M^1..M^2`), the earliest merge winning when a later one repeats them. Commits of repositories no longer seen are kept.
+
+Attribution is per turn: each turn goes to your next commit in the same repository, when that commit lands no later than 30 minutes after the session ends (its last turn). A session with three commits splits its tokens among them; turns after the last one are **orphan**. It is recomputed in full after every ingest.
+
+`GET /api/git?from&to` (Summary period rules) returns `commits` authored in the period (repository name, short sha, subject, `authoredAt`, additions, deletions, tokens, computed and reported cost, sessions, PR number or null), `pullRequests` aggregated over those commits, and `orphanSessions` with orphan turns in the period (session, agent, repository or null, `startedAt`, orphan tokens and costs, `hadCommit`). Tokens are input + output + cache read + cache write; computed cost follows the Summary's current-pricing rule. Errors: 400 `invalid git period`, 500 `git unavailable`.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.

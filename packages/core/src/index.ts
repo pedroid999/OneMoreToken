@@ -2,6 +2,7 @@ export * from "./data/files";
 export * from "./data/views";
 export * from "./db/database";
 export * from "./db/migrate";
+export * from "./git";
 export * from "./ingest/batch";
 export * from "./ingest/persist";
 export * from "./pricing/calculate";
