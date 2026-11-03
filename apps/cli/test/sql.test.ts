@@ -110,6 +110,17 @@ describe("SQL console queries (spec §7.1, T4)", () => {
     expect(tables.map((table) => table.name)).toContain("sql_probe");
   });
 
+  it("never reads a local file through a DuckDB table function", async () => {
+    const secret = join(home, "secret.txt");
+    writeFileSync(secret, "TOP-SECRET-CONTENT");
+    const response = await query(`SELECT * FROM read_text('${secret}')`);
+    // The raw body is checked too: a leaked row would travel as text even if the status were 400.
+    const text = await response.clone().text();
+    expect(response.status).toBe(400);
+    expect((await bodyOf<{ error: string }>(response)).error).toBe("query failed");
+    expect(text).not.toContain("TOP-SECRET-CONTENT");
+  });
+
   it("rejects multiple statements of any kind", async () => {
     for (const sql of ["SELECT 1; DROP TABLE sql_probe", "SELECT 1; SELECT 2", "  ;  "]) {
       const response = await query(sql);
