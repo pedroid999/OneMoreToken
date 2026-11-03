@@ -40,7 +40,6 @@ describe("router (spec §8.1: the URL reflects the state)", () => {
       agents: 2,
       git: undefined,
       tools: 2,
-      sql: 4,
       settings: undefined,
       about: undefined,
     });

@@ -101,9 +101,18 @@ describe("app shell", () => {
   });
 
   it("shows the upcoming phase for views not built yet", async () => {
+    await renderApp("/tools");
+    expect(screen.getByRole("heading", { level: 1, name: es.nav.tools })).toBeTruthy();
+    expect(screen.getByText("Esta vista llega en la fase 2.")).toBeTruthy();
+  });
+
+  it("shows the SQL console at its route instead of the upcoming placeholder", async () => {
     await renderApp("/sql");
-    expect(screen.getByRole("heading", { level: 1, name: es.nav.sql })).toBeTruthy();
-    expect(screen.getByText("Esta vista llega en la fase 4.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: es.sql.title })).toBeTruthy();
+    expect(screen.queryByText("Esta vista llega en la fase 4.")).toBeNull();
+    expect(screen.getByRole("link", { name: es.nav.sql }).getAttribute("aria-current")).toBe(
+      "page",
+    );
   });
 
   it("shows Git at its route instead of the upcoming placeholder", async () => {

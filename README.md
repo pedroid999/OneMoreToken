@@ -216,12 +216,20 @@ Attribution is per turn: each turn goes to your next commit in the same reposito
 
 The **Git** view (`/git`) shows, for the selected period, the attributed vs orphan tokens, a chart of tokens per commit over time, a commits table and a PR table with tokens per net line (tokens / (additions − deletions), not applicable when the net is zero or negative), and the orphan sessions with a link to each one in the Session view.
 
+### SQL console
+
+The **SQL** view (`/sql`) runs queries against your local DuckDB and keeps the queries you want to reuse. It is strictly read-only: your text is wrapped as `SELECT * FROM (<your query>)` before it reaches DuckDB, so only one query expression parses and statements such as `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `ATTACH`, `COPY`, `PRAGMA`, `SET` or `CALL` fail before executing anything. A second statement fails the same way, so nothing you type can change the database. Queries are capped at 1000 returned rows (`truncated` says whether more exist) and interrupted after 5 seconds.
+
+`POST /api/sql/query` with `{ "sql": "SELECT …" }` returns `columns` (name and DuckDB type), `rows` (DuckDB's JSON values: 64-bit integers arrive as text, so nothing is rounded), `rowCount`, `truncated` and `elapsedMs`. Errors: 400 `invalid sql` (empty or oversized text), 400 `query failed` with a one-line `message` from DuckDB (parse or execution error), 504 `query timed out`.
+
+Saved queries live in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/<id>.json`, private files (`0600`) that are replaced atomically, never written through a symlink and never fatal when corrupt: `GET /api/sql/views` returns them plus the files it could not read, `PUT /api/sql/views/:id` stores `{ "name", "sql" }`, and `DELETE /api/sql/views/:id` removes one. The view saves the query you are editing under a name, loads one back into the editor, and runs it with the Run button or Ctrl/Cmd+Enter.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
 - The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
 - Agent session files are only read, never modified.
-- Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`.
+- Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`; the queries you save from the SQL console are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/`.
 - Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
 
 ### Keep your Claude Code history

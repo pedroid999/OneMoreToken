@@ -618,5 +618,39 @@
     "notApplicable": "n/a",
     "yes": "Yes",
     "no": "No"
+  },
+  "sql": {
+    "title": "SQL console",
+    "intro": "Query the local DuckDB read-only: writes are refused before they run.",
+    "editorTitle": "Query",
+    "editor": "SQL query",
+    "run": "Run",
+    "running": "Running…",
+    "runHint": "Ctrl+Enter also runs the query.",
+    "result": "Result",
+    "truncated": "Showing the first {{rows}} rows: the result is larger.",
+    "empty": "Run a query to see its rows.",
+    "emptyHint": "One read-only statement at a time; the result is capped.",
+    "nullValue": "—",
+    "error": {
+      "invalid": "The query is empty or contains more than one statement.",
+      "timeout": "The query took too long and was interrupted.",
+      "failed": "The query failed",
+      "unavailable": "The SQL console is unavailable."
+    },
+    "saved": {
+      "title": "Saved queries",
+      "name": "Name",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Query saved.",
+      "saveError": "The query could not be saved.",
+      "empty": "No saved queries yet.",
+      "error": "The saved queries could not be loaded.",
+      "delete": "Delete {{name}}",
+      "deleteLabel": "Delete"
+    },
+    "summary_one": "{{count}} row · {{ms}} ms",
+    "summary_other": "{{count}} rows · {{ms}} ms"
   }
 }

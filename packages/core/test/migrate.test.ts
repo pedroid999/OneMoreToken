@@ -274,6 +274,9 @@ describe("migrate error reporting", () => {
       async all() {
         return [];
       },
+      async query() {
+        throw new Error("not needed");
+      },
       close() {},
     };
 

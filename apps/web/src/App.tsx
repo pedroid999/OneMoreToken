@@ -6,6 +6,7 @@ import { StatusBar } from "./components/StatusBar";
 import { GitView } from "./git/GitView";
 import { type AppEnvironment, PreferencesProvider, usePreferences } from "./prefs/usePreferences";
 import { matchRoute, navigate, ROUTES, type Route, useLocation } from "./router";
+import { SqlView } from "./sql/SqlView";
 import { AboutView } from "./views/AboutView";
 import { BurnRateView } from "./views/BurnRateView";
 import { ExplorerView } from "./views/ExplorerView";
@@ -151,6 +152,8 @@ function View({ route }: { route: Route }) {
       return <ProfilesView />;
     case "git":
       return <GitView />;
+    case "sql":
+      return <SqlView />;
     case "settings":
       return <SettingsView />;
     case "about":
