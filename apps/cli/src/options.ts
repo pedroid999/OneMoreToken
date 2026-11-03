@@ -35,6 +35,11 @@ export function defaultCalibrationsPath(env: NodeJS.ProcessEnv, home: string): s
   return join(appDataHome(env, home), "calibrations.json");
 }
 
+/** Saved SQL queries: `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views` (T4). */
+export function defaultSavedQueriesDirectory(env: NodeJS.ProcessEnv, home: string): string {
+  return join(appDataHome(env, home), "sql-views");
+}
+
 /** The user's subscriptions: `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`. */
 export function defaultSubscriptionsConfigPath(env: NodeJS.ProcessEnv, home: string): string {
   return join(env.XDG_CONFIG_HOME || join(home, ".config"), "one-more-token", "subscriptions.json");
