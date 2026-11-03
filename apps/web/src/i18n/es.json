@@ -618,5 +618,39 @@
     "notApplicable": "n/a",
     "yes": "Sí",
     "no": "No"
+  },
+  "sql": {
+    "title": "Consola SQL",
+    "intro": "Consulta la DuckDB local en solo lectura: las escrituras se rechazan antes de ejecutarse.",
+    "editorTitle": "Consulta",
+    "editor": "Consulta SQL",
+    "run": "Ejecutar",
+    "running": "Ejecutando…",
+    "runHint": "Ctrl+Enter también ejecuta la consulta.",
+    "result": "Resultado",
+    "truncated": "Se muestran las primeras {{rows}} filas: el resultado es mayor.",
+    "empty": "Ejecuta una consulta para ver sus filas.",
+    "emptyHint": "Una sola sentencia de lectura; el resultado está limitado.",
+    "nullValue": "—",
+    "error": {
+      "invalid": "La consulta está vacía o contiene más de una sentencia.",
+      "timeout": "La consulta tardó demasiado y se interrumpió.",
+      "failed": "La consulta falló",
+      "unavailable": "La consola SQL no está disponible."
+    },
+    "saved": {
+      "title": "Consultas guardadas",
+      "name": "Nombre",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "saved": "Consulta guardada.",
+      "saveError": "No se pudo guardar la consulta.",
+      "empty": "Todavía no hay consultas guardadas.",
+      "error": "No se pudieron cargar las consultas guardadas.",
+      "delete": "Eliminar {{name}}",
+      "deleteLabel": "Eliminar"
+    },
+    "summary_one": "{{count}} fila · {{ms}} ms",
+    "summary_other": "{{count}} filas · {{ms}} ms"
   }
 }
