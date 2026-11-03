@@ -54,7 +54,12 @@ export interface Database {
 }
 
 export async function openDatabase(path: string): Promise<Database> {
-  const instance = await DuckDBInstance.create(path);
+  // The warehouse never reads or writes files through SQL. The SQL console (spec §7.1) accepts
+  // arbitrary query expressions, so DuckDB table functions such as `read_text` or `read_csv`
+  // would otherwise hand any local file to the browser. External access is closed for the whole
+  // instance at open time: it is a database-wide setting that cannot be reopened later, which is
+  // exactly the guarantee this product needs. Ingestion reads agent files from Node, never via SQL.
+  const instance = await DuckDBInstance.create(path, { enable_external_access: "false" });
   const connection = await instance.connect();
   return {
     async run(sql, params) {
