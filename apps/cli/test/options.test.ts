@@ -36,6 +36,9 @@ describe("parseServeOptions", () => {
         port: 7317,
         host: "127.0.0.1",
         db: join(HOME, ".local", "share", "one-more-token", "omt.duckdb"),
+        reportsDirectory: join(HOME, ".local", "share", "one-more-token", "reports"),
+        reportLanguage: "es",
+        reportIntervalMs: 3_600_000,
         help: false,
       },
     });

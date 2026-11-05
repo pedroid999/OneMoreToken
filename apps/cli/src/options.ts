@@ -1,15 +1,24 @@
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+import { isReportLanguage, type ReportLanguage } from "@omt/core";
 
 /** Not 4317/4318: those are the OpenTelemetry (OTLP) collector ports. */
 export const DEFAULT_PORT = 7317;
 /** Local only by default (spec §10). */
 export const DEFAULT_HOST = "127.0.0.1";
+/** Weekly and monthly reports: one pass per hour, cheap and bounded (L27). */
+export const DEFAULT_REPORT_INTERVAL_MS = 3_600_000;
+/** The dashboard's default language is Spanish; reports follow it unless told otherwise. */
+export const DEFAULT_REPORT_LANGUAGE: ReportLanguage = "es";
 
 export interface ServeOptions {
   port: number;
   host: string;
   db: string;
+  /** D4 destination of the markdown reports. */
+  reportsDirectory: string;
+  reportLanguage: ReportLanguage;
+  reportIntervalMs: number;
   help: boolean;
 }
 
@@ -40,6 +49,11 @@ export function defaultSavedQueriesDirectory(env: NodeJS.ProcessEnv, home: strin
   return join(appDataHome(env, home), "sql-views");
 }
 
+/** Markdown reports (S6, D4): `${XDG_DATA_HOME:-~/.local/share}/one-more-token/reports`. */
+export function defaultReportsDirectory(env: NodeJS.ProcessEnv, home: string): string {
+  return join(appDataHome(env, home), "reports");
+}
+
 /** The user's subscriptions: `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`. */
 export function defaultSubscriptionsConfigPath(env: NodeJS.ProcessEnv, home: string): string {
   return join(env.XDG_CONFIG_HOME || join(home, ".config"), "one-more-token", "subscriptions.json");
@@ -50,7 +64,13 @@ export function parseServeOptions(
   env: NodeJS.ProcessEnv,
   home: string,
 ): ParseResult<ServeOptions> {
-  let values: { port?: string | undefined; host?: string | undefined; db?: string | undefined };
+  let values: {
+    port?: string | undefined;
+    host?: string | undefined;
+    db?: string | undefined;
+    "report-lang"?: string | undefined;
+    "report-interval-ms"?: string | undefined;
+  };
   let help = false;
   try {
     const parsed = parseArgs({
@@ -61,6 +81,8 @@ export function parseServeOptions(
         port: { type: "string" },
         host: { type: "string" },
         db: { type: "string" },
+        "report-lang": { type: "string" },
+        "report-interval-ms": { type: "string" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -81,12 +103,34 @@ export function parseServeOptions(
     port = Number(values.port);
   }
 
+  const flag = values["report-lang"];
+  const language = flag ?? env.OMT_REPORT_LANGUAGE ?? DEFAULT_REPORT_LANGUAGE;
+  if (!isReportLanguage(language)) {
+    const source = flag === undefined ? "OMT_REPORT_LANGUAGE" : "--report-lang";
+    return { ok: false, error: `invalid ${source} "${language}": expected "es" or "en"` };
+  }
+
+  let reportIntervalMs = DEFAULT_REPORT_INTERVAL_MS;
+  const interval = values["report-interval-ms"];
+  if (interval !== undefined) {
+    if (!/^\d+$/.test(interval) || Number(interval) > 86_400_000) {
+      return {
+        ok: false,
+        error: `invalid --report-interval-ms "${interval}": expected an integer between 0 and 86400000`,
+      };
+    }
+    reportIntervalMs = Number(interval);
+  }
+
   return {
     ok: true,
     options: {
       port,
       host: values.host ?? DEFAULT_HOST,
       db: values.db ?? defaultDatabasePath(env, home),
+      reportsDirectory: defaultReportsDirectory(env, home),
+      reportLanguage: language,
+      reportIntervalMs,
       help,
     },
   };

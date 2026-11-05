@@ -36,15 +36,27 @@ export async function readUserJson(
   id: string,
   maxBytes: number,
 ): Promise<unknown> {
+  const text = await readUserText(directory, `${id}.json`, maxBytes);
+  if (text === null) return null;
   try {
-    const handle = await open(
-      join(directory, `${id}.json`),
-      constants.O_RDONLY | constants.O_NOFOLLOW,
-    );
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/** Text of `file` inside `directory`, or null when absent, unsafe, oversized or unreadable. */
+export async function readUserText(
+  directory: string,
+  file: string,
+  maxBytes: number,
+): Promise<string | null> {
+  try {
+    const handle = await open(join(directory, file), constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const stats = await handle.stat();
       if (!stats.isFile() || stats.size > maxBytes) return null;
-      return JSON.parse(await handle.readFile("utf8"));
+      return await handle.readFile("utf8");
     } finally {
       await handle.close();
     }
@@ -55,14 +67,19 @@ export async function readUserJson(
 
 /** Atomic replace: a private temp file in the same directory, then rename over the target. */
 export async function writeUserJson(directory: string, id: string, text: string): Promise<void> {
-  const target = join(directory, `${id}.json`);
+  await writeUserText(directory, `${id}.json`, text);
+}
+
+/** Same atomic replace for any private user file (`<file>` is the complete file name). */
+export async function writeUserText(directory: string, file: string, text: string): Promise<void> {
+  const target = join(directory, file);
   try {
     const stats = await lstat(target);
     if (stats.isSymbolicLink() || !stats.isFile()) throw new UnsafeStorageError();
   } catch (error) {
     if (!missing(error)) throw error;
   }
-  const temp = join(directory, `.${id}.${randomUUID()}.tmp`);
+  const temp = join(directory, `.${file}.${randomUUID()}.tmp`);
   const handle = await open(
     temp,
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,

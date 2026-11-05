@@ -224,12 +224,20 @@ The **SQL** view (`/sql`) runs queries against your local DuckDB and keeps the q
 
 Saved queries live in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/<id>.json`, private files (`0600`) that are replaced atomically, never written through a symlink and never fatal when corrupt: `GET /api/sql/views` returns them plus the files it could not read, `PUT /api/sql/views/:id` stores `{ "name", "sql" }`, and `DELETE /api/sql/views/:id` removes one. The view saves the query you are editing under a name, loads one back into the editor, and runs it with the Run button or Ctrl/Cmd+Enter.
 
+### Weekly and monthly reports
+
+`omt serve` writes two markdown reports inside the server process (spec §9): the **weekly report** of the last ISO week that ended and the monthly **wrapped** of the last calendar month that ended. Both use UTC calendar periods, so the file name never changes while a period is still open. The weekly report lists the period summary against the previous period (sessions, turns, tokens, computed and reported cost with their unpriced counts, cache hit ratio, ingest issues), tokens per agent, tokens per day, the quota windows of every subscription with their limit, calibration deviation and pace projection, and the Git figures (attributed vs orphan tokens, commits, PRs). The monthly wrapped adds highlights: busiest day, top agent, top model and the share of tokens read from the cache.
+
+Reports are rendered deterministically from the database: running a pass again never rewrites a file whose content did not change, and a period that receives late data is rewritten on the next pass. The language is chosen with `--report-lang es|en` (or `OMT_REPORT_LANGUAGE`), defaulting to `es`; the CLI and its logs stay in English. A pass runs at startup and then every hour (`--report-interval-ms`, `0` keeps only the startup pass). A failed pass is logged and never stops the server. Reports hold aggregates only: no prompts, messages, reasoning or tool output, and no author emails.
+
+Files are `weekly-YYYY-Www.md` and `monthly-YYYY-MM.md` in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/reports/`, inside a private `0700` directory, `0600` files, replaced atomically and never written through a symlink.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
 - The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
 - Agent session files are only read, never modified.
-- Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`; the queries you save from the SQL console are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/`.
+- Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`; the queries you save from the SQL console are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/`; the markdown reports are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/reports/`.
 - Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
 
 ### Keep your Claude Code history
