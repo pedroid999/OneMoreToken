@@ -232,6 +232,16 @@ Reports are rendered deterministically from the database: running a pass again n
 
 Files are `weekly-YYYY-Www.md` and `monthly-YYYY-MM.md` in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/reports/`, inside a private `0700` directory, `0600` files, replaced atomically and never written through a symlink.
 
+### Exports
+
+Every chart offers **PNG** and **SVG**, and every table offers **CSV** (spec §9: *Exportación de cualquier gráfico a PNG/SVG y de cualquier tabla a CSV*). The controls sit in the header of the panel or section they belong to: the burn-rate timeline, the Explorer chart, the session context curve, the profiles comparison and the Git tokens-per-commit chart export as images; the Summary per-day tokens, the burn-rate timeline, over-limit and readings tables, the Explorer results, the session list and detail tables, the profiles tables, the Git commits, pull requests and orphan sessions, and the SQL result set export as CSV. A control stays disabled, or is left out entirely, while its table or chart has nothing to export.
+
+The PNG is rasterized in the browser by Vega at **2× the rendered size**, so it stays sharp on a high-density screen; the SVG is the vector form of the same picture, ready to edit or scale.
+
+CSV is machine-ready rather than pretty-printed: the **header row uses the same labels as the visible table in your UI language**, and the cells hold raw values — plain numbers with a dot decimal separator and no thousands grouping, instants as ISO-8601 UTC strings, `true`/`false`, and an empty cell when a value is unknown or not applicable. Token and cost figures reach a spreadsheet as the exact numbers behind the `M` and `$` formatting on screen. Files are named after the route plus the selected period (`burn-rate-timeline-claude-pro-2026-01-01-2026-01-08.csv`, `git-commits-2026-10.csv`), without a timestamp, so exporting twice does not pile up copies.
+
+Exports are produced entirely in your browser from data the dashboard already holds: nothing is uploaded, there is no telemetry, and no new network request is made (spec §10).
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.

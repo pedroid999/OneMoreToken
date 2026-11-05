@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { View } from "vega";
 import embed, { type EmbedOptions, type VisualizationSpec } from "vega-embed";
 import { ErrorState } from "../components/ErrorState";
+import { dataUrlToBlob } from "../export/image";
 import type { Language } from "../i18n/i18n";
 import { usePreferences } from "../prefs/usePreferences";
 import { BASE_TOKENS, THEME_TOKENS } from "../theme/tokens";
@@ -15,6 +18,14 @@ export interface ChartProps {
   /** Accessible chart name, already translated; the data table is the text alternative. */
   label: string;
   language: Language;
+  /** Optional handle so the view can export the rendered chart (spec §9, L30). */
+  chartRef?: RefObject<ChartHandle | null> | undefined;
+}
+
+/** Export surface of one mounted chart; both calls resolve null when the view is gone. */
+export interface ChartHandle {
+  toSvg(): Promise<string | null>;
+  toPng(scale?: number): Promise<Blob | null>;
 }
 
 const LOCALES: Record<Language, string> = { es: "es-ES", en: "en-US" };
@@ -53,9 +64,10 @@ function vegaLocales(language: Language): Pick<EmbedOptions, "formatLocale" | "t
 }
 
 /** Vega/Vega-Lite rendering bound to the active theme tokens (spec §8.2). */
-export function Chart({ spec, datasets, label, language }: ChartProps) {
+export function Chart({ spec, datasets, label, language, chartRef }: ChartProps) {
   const { t } = useTranslation();
   const host = useRef<HTMLDivElement>(null);
+  const view = useRef<View | null>(null);
   const { resolvedTheme } = usePreferences();
   const config = useMemo(() => {
     const theme = THEME_TOKENS.themes[resolvedTheme];
@@ -78,8 +90,15 @@ export function Chart({ spec, datasets, label, language }: ChartProps) {
       ...locales,
     })
       .then((result) => {
-        if (cancelled) result.view.finalize();
-        else finalize = () => result.view.finalize();
+        if (cancelled) {
+          result.view.finalize();
+          return;
+        }
+        view.current = result.view;
+        finalize = () => {
+          view.current = null;
+          result.view.finalize();
+        };
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
@@ -89,6 +108,32 @@ export function Chart({ spec, datasets, label, language }: ChartProps) {
       finalize?.();
     };
   }, [spec, datasets, config, locales, attempt]);
+
+  // The view stays alive while the chart is mounted so it can be exported (S7, L30).
+  useImperativeHandle(
+    chartRef,
+    () => ({
+      async toSvg() {
+        const current = view.current;
+        if (!current) return null;
+        try {
+          return current.toSVG();
+        } catch {
+          return null;
+        }
+      },
+      async toPng(scale = 2) {
+        const current = view.current;
+        if (!current) return null;
+        try {
+          return dataUrlToBlob(await current.toImageURL("png", scale));
+        } catch {
+          return null;
+        }
+      },
+    }),
+    [],
+  );
 
   return (
     <>

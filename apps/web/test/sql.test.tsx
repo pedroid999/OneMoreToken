@@ -8,7 +8,7 @@ import { createI18n } from "../src/i18n/i18n";
 import type { SavedQuery, SqlResult } from "../src/sql/contract";
 import { SqlView } from "../src/sql/SqlView";
 import { DEFAULT_SQL } from "../src/sql/state";
-import { memoryStorage } from "./helpers";
+import { type DownloadSeam, installDownloadSeam, memoryStorage } from "./helpers";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -43,6 +43,7 @@ interface Call {
 let calls: Call[];
 let views: SavedQuery[];
 let queryAnswer: () => Response;
+let seam: DownloadSeam;
 const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
   const method = init?.method ?? "GET";
@@ -76,9 +77,11 @@ beforeEach(() => {
   queryAnswer = () => json(result());
   vi.stubGlobal("fetch", fetcher);
   fetcher.mockClear();
+  seam = installDownloadSeam();
 });
 afterEach(() => {
   cleanup();
+  seam.restore();
   vi.unstubAllGlobals();
 });
 
@@ -219,5 +222,50 @@ describe("SQL console (T4, S5)", () => {
     await view("es");
     expect(screen.getByRole("heading", { level: 1, name: es.sql.title })).toBeTruthy();
     expect(screen.getByRole("button", { name: es.sql.run })).toBeTruthy();
+  });
+});
+
+describe("SQL exports (S7, Phase 4 L30)", () => {
+  const csv = () =>
+    screen.getByRole("button", {
+      name: en.export.csvAria.replace("{{name}}", en.sql.result),
+    });
+
+  it("downloads the result set as CSV with the column names and raw cells", async () => {
+    await view();
+    run();
+    await screen.findByRole("table", { name: en.sql.result });
+    fireEvent.click(csv());
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    expect(seam.downloads[0]?.name).toBe("sql-result.csv");
+    expect(await seam.text(seam.downloads[0])).toBe("one,text\r\n1,x\r\n");
+  });
+
+  it("keeps nulls empty and structured cells as their JSON text", async () => {
+    queryAnswer = () =>
+      json(
+        result({
+          columns: [
+            { name: "a", type: "INTEGER" },
+            { name: "b", type: "INTEGER[]" },
+          ],
+          rows: [[null, [1, 2]]],
+        }),
+      );
+    await view();
+    run();
+    await screen.findByRole("table", { name: en.sql.result });
+    fireEvent.click(csv());
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    expect(await seam.text(seam.downloads[0])).toBe('a,b\r\n,"[1,2]"\r\n');
+  });
+
+  it("offers no CSV before a query runs", async () => {
+    await view();
+    expect(
+      screen.queryByRole("button", {
+        name: en.export.csvAria.replace("{{name}}", en.sql.result),
+      }),
+    ).toBeNull();
   });
 });

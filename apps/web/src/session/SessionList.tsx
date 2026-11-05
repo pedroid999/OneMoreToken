@@ -3,6 +3,8 @@ import type { SessionList as SessionListData } from "../../../cli/src/sessions/c
 import { EmptyState } from "../components/EmptyState";
 import { Panel } from "../components/Panel";
 import { SegmentedControl } from "../components/SegmentedControl";
+import { rangeSlug } from "../export/download";
+import { TableExport } from "../export/TableExport";
 import { formatNumber, formatTokensM, formatUsd } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { agentLabel, dateTimeFormat } from "./labels";
@@ -82,6 +84,36 @@ export function SessionList({ state, language }: { state: SessionState; language
       </div>
       <Panel
         title={t("session.list.title")}
+        actions={
+          data && data.sessions.length > 0 ? (
+            <TableExport
+              name={t("session.list.title")}
+              filename={`session-list-${rangeSlug(state.from, state.to)}-${state.agent ?? "all"}`}
+              columns={[
+                t("session.list.started"),
+                t("session.list.agent"),
+                t("session.list.cwd"),
+                t("session.list.branch"),
+                t("session.list.turns"),
+                t("session.list.tokens"),
+                computedLabel,
+                t("session.list.compactions"),
+                t("session.list.children"),
+              ]}
+              rows={data.sessions.map((session) => [
+                session.startedAt,
+                session.agent,
+                session.cwd,
+                session.branch,
+                session.turns,
+                session.tokens.total,
+                session.costs.computed.usd,
+                session.compactions,
+                session.children,
+              ])}
+            />
+          ) : null
+        }
         status={
           resource.failed || resource.notFound
             ? "error"

@@ -3,13 +3,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionDetail, SessionList } from "../../cli/src/sessions/contract";
+import { sanitizeFilename } from "../src/export/download";
 import en from "../src/i18n/en.json";
 import es from "../src/i18n/es.json";
 import { createI18n } from "../src/i18n/i18n";
 import { PreferencesProvider } from "../src/prefs/usePreferences";
 import { dateTimeFormat } from "../src/session/labels";
 import { SessionView } from "../src/views/SessionView";
-import { fakeColorScheme, memoryStorage } from "./helpers";
+import { type DownloadSeam, fakeColorScheme, installDownloadSeam, memoryStorage } from "./helpers";
 
 const from = "2026-01-01T00:00:00.000Z";
 const to = "2026-01-08T00:00:00.000Z";
@@ -140,8 +141,10 @@ const json = (body: unknown, status = 200) =>
 const fetcher = vi.fn<typeof fetch>();
 let requests: string[];
 let scheme: ReturnType<typeof fakeColorScheme>;
+let seam: DownloadSeam;
 
 beforeEach(() => {
+  seam = installDownloadSeam();
   window.history.replaceState(
     null,
     "",
@@ -160,6 +163,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  seam.restore();
   vi.unstubAllGlobals();
 });
 
@@ -421,5 +425,192 @@ describe("Session hot switches (S11)", () => {
     expect(window.location.search).toBe(search);
     expect(requests.length).toBe(calls);
     expect(screen.getByRole("img", { name: en.session.context.chartName })).toBeTruthy();
+  });
+});
+
+describe("Session exports (S7, Phase 4 L30)", () => {
+  const csv = (scope: HTMLElement, name: string) =>
+    within(scope).getByRole("button", { name: en.export.csvAria.replace("{{name}}", name) });
+  const record = (cells: readonly (string | number | null)[]) => cells.join(",");
+  const csvOf = (header: readonly string[], rows: readonly string[]) =>
+    `${[header.join(","), ...rows].join("\r\n")}\r\n`;
+
+  it("downloads the session list as CSV with raw instants and values", async () => {
+    await view();
+    await listTable();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: en.export.csvAria.replace("{{name}}", en.session.list.title),
+      }),
+    );
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    expect(seam.downloads[0]?.name).toBe("session-list-2026-01-01-2026-01-08-all.csv");
+    expect(await seam.text(seam.downloads[0])).toBe(
+      csvOf(
+        [
+          en.session.list.started,
+          en.session.list.agent,
+          en.session.list.cwd,
+          en.session.list.branch,
+          en.session.list.turns,
+          en.session.list.tokens,
+          en.session.list.computed,
+          en.session.list.compactions,
+          en.session.list.children,
+        ],
+        [
+          record([
+            "2026-01-02T10:00:00.000Z",
+            "claude-code",
+            "project-x",
+            "main",
+            4,
+            1500000,
+            1.25,
+            1,
+            1,
+          ]),
+          record(["2026-01-02T10:00:00.000Z", "pi", null, null, 4, 1500000, 1.25, 0, 1]),
+        ],
+      ),
+    );
+  });
+
+  it("offers PNG and SVG for the context chart of a session", async () => {
+    await openDetail();
+    const context = screen.getByRole("region", { name: en.session.context.title });
+    expect(
+      within(context).getByRole("button", {
+        name: en.export.pngAria.replace("{{name}}", en.session.context.title),
+      }).textContent,
+    ).toBe(en.export.png);
+    expect(
+      within(context).getByRole("button", {
+        name: en.export.svgAria.replace("{{name}}", en.session.context.title),
+      }).textContent,
+    ).toBe(en.export.svg);
+  });
+
+  it("downloads the turns table as CSV without formatted numbers", async () => {
+    await openDetail();
+    fireEvent.click(
+      csv(screen.getByRole("region", { name: en.session.turns.title }), en.session.turns.title),
+    );
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    expect(seam.downloads[0]?.name).toBe(sanitizeFilename(`session-turns-${PARENT}`, "csv"));
+    expect(await seam.text(seam.downloads[0])).toBe(
+      csvOf(
+        [
+          en.session.turns.idx,
+          en.session.turns.role,
+          en.session.turns.time,
+          en.session.turns.model,
+          en.session.turns.effort,
+          en.session.turns.context,
+          en.session.turns.input,
+          en.session.turns.output,
+          en.session.turns.cacheRead,
+          en.session.turns.cacheWrite,
+          en.session.turns.cost,
+          en.session.turns.tools,
+        ],
+        [
+          record([
+            0,
+            "user",
+            "2026-01-02T10:00:00.000Z",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "",
+          ]),
+          record([
+            1,
+            "assistant",
+            "2026-01-02T10:01:00.000Z",
+            "model-a",
+            "high",
+            4400,
+            1000,
+            20,
+            3000,
+            400,
+            0.5,
+            "read edit(error)",
+          ]),
+          record([
+            2,
+            "compaction",
+            "2026-01-02T10:02:00.000Z",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "",
+          ]),
+          record([
+            3,
+            "assistant",
+            "2026-01-02T10:03:00.000Z",
+            "model-a",
+            "high",
+            900,
+            900,
+            10,
+            0,
+            0,
+            0.75,
+            "read",
+          ]),
+        ],
+      ),
+    );
+  });
+
+  it("downloads the tools and associated commits tables as CSV", async () => {
+    await openDetail();
+    const tools = screen.getByRole("region", { name: en.session.tools.title });
+    const commits = screen.getByRole("region", { name: en.session.commits.title });
+    fireEvent.click(csv(tools, en.session.tools.title));
+    fireEvent.click(csv(commits, en.session.commits.title));
+    await waitFor(() => expect(seam.downloads).toHaveLength(2));
+    expect(seam.downloads.map((download) => download.name)).toEqual([
+      sanitizeFilename(`session-tools-${PARENT}`, "csv"),
+      sanitizeFilename(`session-commits-${PARENT}`, "csv"),
+    ]);
+    expect(await seam.text(seam.downloads[0])).toBe(
+      csvOf(
+        [
+          en.session.tools.tool,
+          en.session.tools.calls,
+          en.session.tools.errors,
+          en.session.tools.duration,
+        ],
+        [record(["read", 2, 0, 2000]), record(["edit", 1, 1, null])],
+      ),
+    );
+    expect(await seam.text(seam.downloads[1])).toBe(
+      csvOf(
+        [
+          en.git.column.repository,
+          en.git.column.sha,
+          en.git.column.subject,
+          en.git.column.date,
+          en.git.column.additions,
+          en.git.column.deletions,
+          en.git.column.tokens,
+        ],
+        [record(["repo-a", "abc1234", "feat: one", "2026-01-02T10:30:00.000Z", 12, 2, 1200000])],
+      ),
+    );
   });
 });

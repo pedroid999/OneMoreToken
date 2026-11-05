@@ -1,7 +1,11 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Estimated } from "../components/Estimated";
 import { Panel } from "../components/Panel";
+import type { ChartHandle } from "../explorer/Chart";
+import { ChartExport } from "../export/ChartExport";
+import { rangeSlug } from "../export/download";
+import { TableExport } from "../export/TableExport";
 import { formatNumber, formatPercent, formatUsd } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { CalibrationSection } from "./CalibrationSection";
@@ -12,6 +16,7 @@ import {
   paceOf,
   type QuotasPeriod,
   quotaTimeFormat,
+  timelineRows,
   usageLevel,
   windowKey,
 } from "./state";
@@ -27,13 +32,24 @@ export interface SubscriptionQuotaProps {
   onChanged: () => void;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  actions,
+  children,
+}: {
+  title: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   const id = useId();
   return (
     <section className="quota__section" aria-labelledby={id}>
-      <h3 className="quota__subtitle" id={id}>
-        {title}
-      </h3>
+      <div className="quota__subtitle-row">
+        <h3 className="quota__subtitle" id={id}>
+          {title}
+        </h3>
+        {actions}
+      </div>
       {children}
     </section>
   );
@@ -124,6 +140,8 @@ export function SubscriptionQuota(props: SubscriptionQuotaProps) {
   const value = subscription.extractedValue;
   const over = overLimitRows(subscription);
   const format = quotaTimeFormat(language);
+  const chart = useRef<ChartHandle | null>(null);
+  const slug = `${subscription.id}-${rangeSlug(props.period.from, props.period.to)}`;
 
   return (
     <Panel title={subscription.label}>
@@ -138,8 +156,40 @@ export function SubscriptionQuota(props: SubscriptionQuotaProps) {
         </div>
       </Section>
       {fiveHours ? (
-        <Section title={t("burnRate.timeline.title")}>
-          <QuotaTimeline report={fiveHours} language={language} period={props.period} />
+        <Section
+          title={t("burnRate.timeline.title")}
+          actions={
+            <>
+              <ChartExport
+                chart={chart}
+                name={t("burnRate.timeline.title")}
+                filename={`burn-rate-timeline-${slug}`}
+              />
+              <TableExport
+                name={t("burnRate.timeline.title")}
+                filename={`burn-rate-timeline-${slug}`}
+                columns={[
+                  t("burnRate.timeline.start"),
+                  t("burnRate.timeline.end"),
+                  t("burnRate.timeline.consumption"),
+                  t("burnRate.timeline.level"),
+                ]}
+                rows={timelineRows(fiveHours).map((row) => [
+                  row.start,
+                  row.end,
+                  row.pct,
+                  row.level,
+                ])}
+              />
+            </>
+          }
+        >
+          <QuotaTimeline
+            report={fiveHours}
+            language={language}
+            period={props.period}
+            chartRef={chart}
+          />
         </Section>
       ) : null}
       <Section title={t("burnRate.value.title")}>
@@ -172,7 +222,27 @@ export function SubscriptionQuota(props: SubscriptionQuotaProps) {
           </p>
         ) : null}
       </Section>
-      <Section title={t("burnRate.overLimit.title")}>
+      <Section
+        title={t("burnRate.overLimit.title")}
+        actions={
+          over.length === 0 ? null : (
+            <TableExport
+              name={t("burnRate.overLimit.title")}
+              filename={`burn-rate-over-limit-${slug}`}
+              columns={[
+                t("burnRate.overLimit.window"),
+                t("burnRate.overLimit.period"),
+                t("burnRate.overLimit.amount"),
+              ]}
+              rows={over.map((row) => [
+                row.kind,
+                `${row.startsAt}/${row.endsAt}`,
+                row.overLimitUsd,
+              ])}
+            />
+          )
+        }
+      >
         {over.length === 0 ? (
           <p className="quota__muted">{t("burnRate.overLimit.empty")}</p>
         ) : (
