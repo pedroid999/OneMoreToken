@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { SessionCommit } from "../../../cli/src/sessions/contract";
 import { Panel } from "../components/Panel";
+import { TableExport } from "../export/TableExport";
 import { formatNumber, formatTokensM } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { dateTimeFormat } from "./labels";
@@ -19,15 +20,37 @@ const COLUMNS = [
 export function SessionCommits({
   commits,
   language,
+  slug,
 }: {
   commits: readonly SessionCommit[];
   language: Language;
+  slug: string;
 }) {
   const { t } = useTranslation();
   const format = dateTimeFormat(language);
   const title = t("session.commits.title");
   return (
-    <Panel title={title}>
+    <Panel
+      title={title}
+      actions={
+        commits.length ? (
+          <TableExport
+            name={title}
+            filename={`session-commits-${slug}`}
+            columns={COLUMNS.map(([key]) => t(`git.column.${key}`))}
+            rows={commits.map((commit) => [
+              commit.repo,
+              commit.sha,
+              commit.subject,
+              commit.authoredAt,
+              commit.additions,
+              commit.deletions,
+              commit.tokens,
+            ])}
+          />
+        ) : null
+      }
+    >
       {commits.length ? (
         <>
           <div className="session__table-wrap">

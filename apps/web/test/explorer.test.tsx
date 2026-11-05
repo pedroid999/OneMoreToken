@@ -7,7 +7,7 @@ import es from "../src/i18n/es.json";
 import { createI18n } from "../src/i18n/i18n";
 import { PreferencesProvider } from "../src/prefs/usePreferences";
 import { ExplorerView } from "../src/views/ExplorerView";
-import { fakeColorScheme, memoryStorage } from "./helpers";
+import { type DownloadSeam, fakeColorScheme, installDownloadSeam, memoryStorage } from "./helpers";
 
 const DAY = 86400000;
 const from = "2026-01-01T00:00:00.000Z";
@@ -101,8 +101,10 @@ const json = (body: unknown, status = 200) =>
 const fetcher = vi.fn<typeof fetch>();
 let storedViews: ViewEntry[];
 let posts: Record<string, unknown>[];
+let seam: DownloadSeam;
 
 beforeEach(() => {
+  seam = installDownloadSeam();
   window.history.replaceState(
     null,
     "",
@@ -135,6 +137,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  seam.restore();
   vi.unstubAllGlobals();
 });
 
@@ -443,5 +446,84 @@ describe("Explorer chart (S8: Vega/Vega-Lite with an accessible name)", () => {
     });
     await waitFor(() => expect(chart.querySelector("svg")).not.toBeNull(), { timeout: 5000 });
     expect(container.querySelector(".explorer__chart")).toBe(chart);
+  });
+});
+
+describe("Explorer exports (S7, Phase 4 L30)", () => {
+  const slug = "2026-01-01-2026-01-08";
+  const panel = () => screen.findByRole("region", { name: en.explorer.results });
+  const csvButton = (scope: HTMLElement) =>
+    within(scope).getByRole("button", {
+      name: en.export.csvAria.replace("{{name}}", en.explorer.dataTable),
+    });
+  const chartLabel = (type: string) => en.explorer.chartName.replace("{{title}}", type);
+
+  it("offers PNG and SVG for the chart and CSV for the data table", async () => {
+    await view();
+    const results = await panel();
+    const name = chartLabel(en.explorer.chartType.barStacked);
+    expect(
+      within(results).getByRole("button", { name: en.export.pngAria.replace("{{name}}", name) })
+        .textContent,
+    ).toBe(en.export.png);
+    expect(
+      within(results).getByRole("button", { name: en.export.svgAria.replace("{{name}}", name) })
+        .textContent,
+    ).toBe(en.export.svg);
+    expect(csvButton(results).textContent).toBe(en.export.csv);
+  });
+
+  it("downloads the results as CSV with the localized column labels and raw values", async () => {
+    await view();
+    fireEvent.click(csvButton(await panel()));
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    const expected = [
+      [
+        en.explorer.dimension.day,
+        en.explorer.dimension.agent,
+        en.explorer.metric.total,
+        en.explorer.metric.computedCost,
+        en.explorer.coverageKnown.replace("{{metric}}", en.explorer.metric.computedCost),
+        en.explorer.coverageUnknown.replace("{{metric}}", en.explorer.metric.computedCost),
+      ].join(","),
+      "2026-01-01,pi,1500000,12.5,2,0",
+      "2026-01-02,,500000,,0,1",
+    ].join("\r\n");
+    expect(seam.downloads[0]?.name).toBe(`explorer-results-${slug}.csv`);
+    expect(await seam.text(seam.downloads[0])).toBe(`${expected}\r\n`);
+  });
+
+  it("renders no export control without rows", async () => {
+    fetcher.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/views") return json({ views: storedViews, invalid: [] });
+      posts.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return json({ ...pivot(), rows: [] });
+    });
+    await view();
+    expect(await screen.findByText(en.explorer.empty.title)).toBeTruthy();
+    const results = await panel();
+    expect(within(results).queryByRole("button")).toBeNull();
+    expect(seam.downloads).toHaveLength(0);
+  });
+
+  it("renders no image export when the chart requirement is not met", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      `/explorer?metrics=total&dimensions=day&chart=heatmap&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    );
+    await view();
+    const results = await panel();
+    expect(within(results).getByText(en.explorer.chartNeeds.twoDimensions)).toBeTruthy();
+    const name = chartLabel(en.explorer.chartType.heatmap);
+    expect(
+      within(results).queryByRole("button", { name: en.export.pngAria.replace("{{name}}", name) }),
+    ).toBeNull();
+    expect(
+      within(results).queryByRole("button", { name: en.export.svgAria.replace("{{name}}", name) }),
+    ).toBeNull();
+    // The data table is still there, so its CSV export is offered.
+    expect(csvButton(results)).toBeTruthy();
   });
 });

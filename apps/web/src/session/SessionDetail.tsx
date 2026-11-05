@@ -1,9 +1,12 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { SessionDetail as SessionDetailData } from "../../../cli/src/sessions/contract";
 import { EmptyState } from "../components/EmptyState";
 import { LoadingState } from "../components/LoadingState";
 import { Panel } from "../components/Panel";
+import type { ChartHandle } from "../explorer/Chart";
+import { ChartExport } from "../export/ChartExport";
+import { TableExport } from "../export/TableExport";
 import { formatNumber, formatTokensM, formatUsd } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { agentLabel, dateTimeFormat, roleLabel } from "./labels";
@@ -54,7 +57,7 @@ export function SessionDetail({ id, language }: { id: string; language: Language
       >
         {data ? <Overview data={data} language={language} /> : null}
       </Panel>
-      {data && !notFound ? <Sections data={data} language={language} /> : null}
+      {data && !notFound ? <Sections data={data} language={language} slug={id} /> : null}
     </>
   );
 }
@@ -134,7 +137,15 @@ function Overview({ data, language }: { data: SessionDetailData; language: Langu
   );
 }
 
-function Sections({ data, language }: { data: SessionDetailData; language: Language }) {
+function Sections({
+  data,
+  language,
+  slug,
+}: {
+  data: SessionDetailData;
+  language: Language;
+  slug: string;
+}) {
   const { t } = useTranslation();
   const dateFormat = dateTimeFormat(language);
   const noValue = t("session.noValue");
@@ -154,14 +165,28 @@ function Sections({ data, language }: { data: SessionDetailData; language: Langu
   const specText = JSON.stringify(contextSpec(labels));
   const spec = useMemo(() => JSON.parse(specText) as Record<string, unknown>, [specText]);
   const tools = toolsSummary(data.turns);
+  const chart = useRef<ChartHandle | null>(null);
+  const hasContext = rows.some((row) => row.context !== null);
 
   return (
     <>
-      <Panel title={t("session.context.title")}>
-        {rows.some((row) => row.context !== null) ? (
+      <Panel
+        title={t("session.context.title")}
+        actions={
+          hasContext ? (
+            <ChartExport
+              chart={chart}
+              name={t("session.context.title")}
+              filename={`session-context-${slug}`}
+            />
+          ) : null
+        }
+      >
+        {hasContext ? (
           <div className="session__chart">
             <Suspense fallback={<LoadingState />}>
               <Chart
+                chartRef={chart}
                 spec={spec}
                 datasets={datasets}
                 label={t("session.context.chartName")}
@@ -174,7 +199,49 @@ function Sections({ data, language }: { data: SessionDetailData; language: Langu
         )}
         <p className="session__muted">{t("session.context.estimate")}</p>
       </Panel>
-      <Panel title={t("session.turns.title")}>
+      <Panel
+        title={t("session.turns.title")}
+        actions={
+          data.turns.length ? (
+            <TableExport
+              name={t("session.turns.title")}
+              filename={`session-turns-${slug}`}
+              columns={(
+                [
+                  "idx",
+                  "role",
+                  "time",
+                  "model",
+                  "effort",
+                  "context",
+                  "input",
+                  "output",
+                  "cacheRead",
+                  "cacheWrite",
+                  "cost",
+                  "tools",
+                ] as const
+              ).map((key) => t(`session.turns.${key}`))}
+              rows={data.turns.map((turn) => [
+                turn.idx,
+                turn.role,
+                turn.ts,
+                turn.model,
+                turn.effort,
+                turn.contextTokens,
+                turn.tokens?.input ?? null,
+                turn.tokens?.output ?? null,
+                turn.tokens?.cacheRead ?? null,
+                turn.tokens?.cacheWrite ?? null,
+                turn.costs.computed,
+                turn.tools
+                  .map((call) => (call.status === "error" ? `${call.tool}(error)` : call.tool))
+                  .join(" "),
+              ])}
+            />
+          ) : null
+        }
+      >
         {/* The turn table is also the text alternative of the context curve (spec §8.4). */}
         <div className="session__table-wrap">
           <table className="session__table" aria-label={t("session.turns.title")}>
@@ -241,7 +308,24 @@ function Sections({ data, language }: { data: SessionDetailData; language: Langu
           </table>
         </div>
       </Panel>
-      <Panel title={t("session.tools.title")}>
+      <Panel
+        title={t("session.tools.title")}
+        actions={
+          tools.length ? (
+            <TableExport
+              name={t("session.tools.title")}
+              filename={`session-tools-${slug}`}
+              columns={[
+                t("session.tools.tool"),
+                t("session.tools.calls"),
+                t("session.tools.errors"),
+                t("session.tools.duration"),
+              ]}
+              rows={tools.map((tool) => [tool.tool, tool.calls, tool.errors, tool.durationMs])}
+            />
+          ) : null
+        }
+      >
         {tools.length ? (
           <div className="session__table-wrap">
             <table className="session__table" aria-label={t("session.tools.title")}>
@@ -314,7 +398,7 @@ function Sections({ data, language }: { data: SessionDetailData; language: Langu
           </>
         ) : null}
       </Panel>
-      <SessionCommits commits={data.commits} language={language} />
+      <SessionCommits commits={data.commits} language={language} slug={slug} />
     </>
   );
 }

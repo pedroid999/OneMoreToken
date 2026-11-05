@@ -4,6 +4,7 @@ import { Button } from "../components/Button";
 import { ErrorState } from "../components/ErrorState";
 import { Estimated } from "../components/Estimated";
 import { LoadingState } from "../components/LoadingState";
+import { TableExport } from "../export/TableExport";
 import { formatPercent } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import type { CalibrationEntry, QuotaSubscriptionReport, WindowKind } from "./contract";
@@ -268,7 +269,36 @@ export function CalibrationSection(props: CalibrationSectionProps) {
         </p>
       ) : null}
 
-      <h4 className="quota__subtitle">{t("burnRate.readings.title")}</h4>
+      <div className="quota__subtitle-row">
+        <h4 className="quota__subtitle">{t("burnRate.readings.title")}</h4>
+        {invalid || entriesFailed || !entries || readings.length === 0 ? null : (
+          <TableExport
+            name={t("burnRate.readings.title")}
+            filename={`burn-rate-readings-${subscription.id}`}
+            columns={[
+              t("burnRate.readings.window"),
+              t("burnRate.readings.observedAt"),
+              t("burnRate.readings.observed"),
+              t("burnRate.readings.predicted"),
+              t("burnRate.readings.delta"),
+              t("burnRate.readings.note"),
+              t("burnRate.readings.origin"),
+            ]}
+            rows={readings.map((entry) => {
+              const prediction = predictions.get(entry.id);
+              return [
+                entry.windowKind,
+                entry.observedAt,
+                entry.observedPct,
+                prediction?.predictedPct ?? null,
+                prediction?.deltaPct ?? null,
+                entry.note,
+                entry.origin ?? "manual",
+              ];
+            })}
+          />
+        )}
+      </div>
       {invalid ? null : entriesFailed ? (
         <ErrorState message={t("burnRate.readings.error")} onRetry={onRetryEntries} />
       ) : !entries ? (
