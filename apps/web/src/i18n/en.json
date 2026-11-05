@@ -652,5 +652,14 @@
     },
     "summary_one": "{{count}} row · {{ms}} ms",
     "summary_other": "{{count}} rows · {{ms}} ms"
+  },
+  "export": {
+    "png": "PNG",
+    "svg": "SVG",
+    "csv": "CSV",
+    "pngAria": "Export {{name}} as PNG",
+    "svgAria": "Export {{name}} as SVG",
+    "csvAria": "Export {{name}} as CSV",
+    "failed": "The export failed."
   }
 }
