@@ -8,6 +8,7 @@ export * from "./ingest/persist";
 export * from "./pricing/calculate";
 export * from "./profiles";
 export * from "./quota/engine";
+export * from "./reports";
 export * from "./schema/tables";
 export * from "./sql/queries";
 export * from "./subscriptions/calibrations";
