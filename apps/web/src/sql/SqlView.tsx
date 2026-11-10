@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { Panel } from "../components/Panel";
+import { TableExport } from "../export/TableExport";
 import { useJson } from "../quotas/useJson";
 import { isSavedQueryList, isSqlResult, type SavedQuery, type SqlResult } from "./contract";
 import {
@@ -31,6 +32,17 @@ const failedText = (failure: SqlFailure, t: (key: string) => string): string => 
   if (failure.kind === "unavailable") return t("sql.error.unavailable");
   return failure.message ? `${t("sql.error.failed")}: ${failure.message}` : t("sql.error.failed");
 };
+
+/**
+ * One raw CSV cell: DuckDB hands back scalars; structured values keep their JSON text, the same
+ * text the table shows (L30 item 1).
+ */
+function csvValue(value: unknown): string | number | boolean | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return value;
+  return cellText(value);
+}
 
 /** Result rows as a plain table: the console's own output, not a chart (spec §7.1, T4). */
 function ResultTable({ result }: { result: SqlResult }) {
@@ -235,6 +247,16 @@ export function SqlView() {
 
       <Panel
         title={t("sql.result")}
+        actions={
+          run.status === "ok" && run.result.rows.length > 0 ? (
+            <TableExport
+              name={t("sql.result")}
+              filename="sql-result"
+              columns={run.result.columns.map((column) => column.name)}
+              rows={run.result.rows.map((row) => row.map(csvValue))}
+            />
+          ) : null
+        }
         status={
           run.status === "running"
             ? "loading"

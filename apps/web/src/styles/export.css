@@ -1,0 +1,14 @@
+/* Export controls for charts and tables (spec §9 S7, Phase 4 L30). Tokens only (spec §8.2). */
+
+.export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.export__error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}

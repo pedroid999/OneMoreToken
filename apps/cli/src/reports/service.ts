@@ -217,7 +217,6 @@ async function periodData(
   period: ReportPeriod,
   previousPeriod: ReportPeriod,
   options: ReportsOptions,
-  now: number,
 ): Promise<PeriodData> {
   const [summary, previousSummary, agents, quotas, git] = await Promise.all([
     readSummary(db, period, options.pricing),
@@ -242,15 +241,8 @@ async function weeklyData(
   db: Database,
   period: ReportPeriod & { id: string; firstDay: string; lastDay: string },
   options: ReportsOptions,
-  now: number,
 ): Promise<WeeklyReportData> {
-  const data = await periodData(
-    db,
-    period,
-    weekPeriod(Date.parse(period.from) - DAY),
-    options,
-    now,
-  );
+  const data = await periodData(db, period, weekPeriod(Date.parse(period.from) - DAY), options);
   return { ...period, ...data };
 }
 
@@ -258,10 +250,9 @@ async function monthlyData(
   db: Database,
   period: ReportPeriod & { id: string; firstDay: string; lastDay: string },
   options: ReportsOptions,
-  now: number,
 ): Promise<MonthlyReportData> {
   const [data, topModel] = await Promise.all([
-    periodData(db, period, monthPeriodBefore(period), options, now),
+    periodData(db, period, monthPeriodBefore(period), options),
     topModelRow(db, period),
   ]);
   const busiest = data.days.reduce<ReportDay | null>(
@@ -303,8 +294,8 @@ export async function generateReports(
   const week = lastEndedWeek(now);
   const month = lastEndedMonth(now);
 
-  const weekly = await weeklyData(db, week, options, now);
-  const monthly = await monthlyData(db, month, options, now);
+  const weekly = await weeklyData(db, week, options);
+  const monthly = await monthlyData(db, month, options);
 
   return [
     {

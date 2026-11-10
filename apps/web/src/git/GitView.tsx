@@ -1,10 +1,13 @@
-import { lazy, type ReactNode, Suspense, useMemo, useState } from "react";
+import { lazy, type ReactNode, Suspense, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { Panel } from "../components/Panel";
 import { SegmentedControl } from "../components/SegmentedControl";
+import type { ChartHandle } from "../explorer/Chart";
+import { ChartExport } from "../export/ChartExport";
+import { rangeSlug } from "../export/download";
 import { formatTokensM } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { parseQuotasPeriod } from "../quotas/state";
@@ -21,8 +24,17 @@ const Chart = lazy(() => import("../explorer/Chart").then((module) => ({ default
 const DAY = 86_400_000;
 
 /** Tokens per commit over time; the commits table is its text alternative (spec §8.4). */
-function Timeline({ commits, language }: { commits: readonly GitCommit[]; language: Language }) {
+function Timeline({
+  commits,
+  language,
+  filename,
+}: {
+  commits: readonly GitCommit[];
+  language: Language;
+  filename: string;
+}) {
   const { t } = useTranslation();
+  const chart = useRef<ChartHandle | null>(null);
   const rowsText = JSON.stringify(timelineRows(commits));
   const datasets = useMemo(() => ({ table: JSON.parse(rowsText) as object[] }), [rowsText]);
   const specText = JSON.stringify(
@@ -35,10 +47,14 @@ function Timeline({ commits, language }: { commits: readonly GitCommit[]; langua
   );
   const spec = useMemo(() => JSON.parse(specText) as Record<string, unknown>, [specText]);
   return (
-    <Panel title={t("git.timeline.title")}>
+    <Panel
+      title={t("git.timeline.title")}
+      actions={<ChartExport chart={chart} name={t("git.timeline.title")} filename={filename} />}
+    >
       <div className="git__chart">
         <Suspense fallback={<LoadingState />}>
           <Chart
+            chartRef={chart}
             spec={spec}
             datasets={datasets}
             label={t("git.timeline.chartName")}
@@ -88,6 +104,7 @@ export function GitView() {
     );
   } else {
     const totals = gitTotals(data);
+    const slug = rangeSlug(period.from, period.to);
     body = (
       <>
         <p className="git__headline">
@@ -96,10 +113,24 @@ export function GitView() {
             orphan: formatTokensM(totals.orphan, language),
           })}
         </p>
-        {data.commits.length ? <Timeline commits={data.commits} language={language} /> : null}
-        <CommitsTable commits={data.commits} language={language} />
-        <PullRequestsTable pullRequests={data.pullRequests} language={language} />
-        <OrphansTable sessions={data.orphanSessions} language={language} />
+        {data.commits.length ? (
+          <Timeline
+            commits={data.commits}
+            language={language}
+            filename={`git-tokens-per-commit-${slug}`}
+          />
+        ) : null}
+        <CommitsTable commits={data.commits} language={language} filename={`git-commits-${slug}`} />
+        <PullRequestsTable
+          pullRequests={data.pullRequests}
+          language={language}
+          filename={`git-pull-requests-${slug}`}
+        />
+        <OrphansTable
+          sessions={data.orphanSessions}
+          language={language}
+          filename={`git-orphan-sessions-${slug}`}
+        />
       </>
     );
   }

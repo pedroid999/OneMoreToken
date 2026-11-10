@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import en from "../src/i18n/en.json";
@@ -9,7 +9,7 @@ import { PreferencesProvider } from "../src/prefs/usePreferences";
 import type { ProfileFigures, ProfileReport, Profiles } from "../src/profiles/contract";
 import { dateTimeFormat } from "../src/session/labels";
 import { ProfilesView } from "../src/views/ProfilesView";
-import { fakeColorScheme, memoryStorage } from "./helpers";
+import { type DownloadSeam, fakeColorScheme, installDownloadSeam, memoryStorage } from "./helpers";
 
 const from = "2026-01-01T00:00:00.000Z";
 const to = "2026-01-08T00:00:00.000Z";
@@ -116,8 +116,10 @@ const json = (body: unknown, status = 200) =>
 const fetcher = vi.fn<typeof fetch>();
 let requests: string[] = [];
 let body: () => Response;
+let seam: DownloadSeam;
 
 beforeEach(() => {
+  seam = installDownloadSeam();
   window.history.replaceState(
     null,
     "",
@@ -136,6 +138,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  seam.restore();
   vi.unstubAllGlobals();
 });
 
@@ -332,5 +335,95 @@ describe("Profiles (S7, S9)", () => {
     const comparison = await region(es.profiles.comparison.title);
     expect(within(comparison).getByText("60,0 % exacto")).toBeTruthy();
     expect(requests.length).toBe(before);
+  });
+});
+
+describe("Profiles exports (S7, Phase 4 L30)", () => {
+  const csv = (scope: HTMLElement, name: string) =>
+    within(scope).getByRole("button", { name: en.export.csvAria.replace("{{name}}", name) });
+  const header = (keys: readonly string[]) =>
+    keys.map((key) => (en.profiles.column as Record<string, string>)[key] ?? key).join(",");
+
+  it("offers PNG and SVG for the comparison chart", async () => {
+    await view();
+    const comparison = await region(en.profiles.comparison.title);
+    const png = within(comparison).getByRole("button", {
+      name: en.export.pngAria.replace("{{name}}", en.profiles.comparison.title),
+    });
+    expect(png.textContent).toBe(en.export.png);
+    const svg = within(comparison).getByRole("button", {
+      name: en.export.svgAria.replace("{{name}}", en.profiles.comparison.title),
+    });
+    expect(svg.textContent).toBe(en.export.svg);
+  });
+
+  it("downloads the comparison table as CSV with localized headers and raw values", async () => {
+    await view();
+    fireEvent.click(csv(await region(en.profiles.comparison.title), en.profiles.comparison.table));
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    const expected = [
+      header([
+        "profile",
+        "sessions",
+        "turns",
+        "tokens",
+        "tokensPerSession",
+        "computedCost",
+        "costPerSession",
+        "reportedCost",
+        "attribution",
+      ]),
+      "deep,2,10,2000000,1000000,8,4,,mixed",
+      // Raw floats are not rounded: 1.2 US$ over 3 sessions exports as the float it is (L30 item 1).
+      `quick,3,10,600000,200000,1.2,${1.2 / 3},,estimated`,
+    ].join("\r\n");
+    expect(seam.downloads[0]?.name).toBe("profiles-comparison-2026-01-01-2026-01-08.csv");
+    expect(await seam.text(seam.downloads[0])).toBe(`${expected}\r\n`);
+  });
+
+  it("downloads the roles table of a profile as CSV in the spec order", async () => {
+    await view();
+    const deep = await region("deep");
+    fireEvent.click(csv(deep, en.profiles.roles.title));
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    const expected = [
+      [
+        en.profiles.roles.role,
+        en.profiles.roles.agent,
+        en.profiles.column.turns,
+        en.profiles.column.tokens,
+        en.profiles.column.computedCost,
+        en.profiles.column.attribution,
+      ].join(","),
+      "orchestrator,orchestrator,10,1200000,5,exact",
+      "writer,gentle-ai-worker,10,400000,1.5,exact",
+      "reviewer,review-risk,10,200000,1,estimated",
+      "unknown,unknown,10,200000,0.5,exact",
+    ].join("\r\n");
+    expect(seam.downloads[0]?.name).toBe("profiles-deep-roles-2026-01-01-2026-01-08.csv");
+    expect(await seam.text(seam.downloads[0])).toBe(`${expected}\r\n`);
+  });
+
+  it("offers CSV for every profile table and stays inert without rows", async () => {
+    await view();
+    const deep = await region("deep");
+    for (const name of [
+      en.profiles.roles.title,
+      en.profiles.efforts.title,
+      en.profiles.subscriptions.title,
+      en.profiles.sessions.title,
+    ]) {
+      expect((csv(deep, name) as HTMLButtonElement).disabled).toBe(false);
+    }
+    const quick = await region("quick");
+    for (const name of [
+      en.profiles.roles.title,
+      en.profiles.efforts.title,
+      en.profiles.subscriptions.title,
+      en.profiles.sessions.title,
+    ]) {
+      expect((csv(quick, name) as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(seam.downloads).toHaveLength(0);
   });
 });

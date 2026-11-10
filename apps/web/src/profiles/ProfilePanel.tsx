@@ -1,20 +1,32 @@
 import { type ReactNode, useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Panel } from "../components/Panel";
+import { TableExport } from "../export/TableExport";
 import type { Language } from "../i18n/i18n";
 import { agentLabel, dateTimeFormat } from "../session/labels";
 import { SessionLink } from "../session/SessionLink";
 import type { ProfileReport } from "./contract";
 import { AttributionText, FiguresCells, FiguresHeader } from "./FiguresCells";
-import { effortGroups, roleCategory, shortHash, sortedRoles } from "./state";
+import { effortGroups, figuresCsv, roleCategory, shortHash, sortedRoles } from "./state";
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  actions,
+  children,
+}: {
+  title: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   const id = useId();
   return (
     <section className="profiles__section" aria-labelledby={id}>
-      <h3 className="profiles__subtitle" id={id}>
-        {title}
-      </h3>
+      <div className="profiles__section-header">
+        <h3 className="profiles__subtitle" id={id}>
+          {title}
+        </h3>
+        {actions}
+      </div>
       {children}
     </section>
   );
@@ -37,12 +49,21 @@ function Table({ label, head, children }: { label: string; head: ReactNode; chil
 export function ProfilePanel({
   profile,
   language,
+  slug,
 }: {
   profile: ProfileReport;
   language: Language;
+  slug: string;
 }) {
   const { t } = useTranslation();
   const format = dateTimeFormat(language);
+  const figuresColumns = [
+    t("profiles.column.turns"),
+    t("profiles.column.tokens"),
+    t("profiles.column.computedCost"),
+    t("profiles.column.attribution"),
+  ];
+  const file = (section: string) => `profiles-${profile.name}-${section}-${slug}`;
 
   return (
     <Panel title={profile.name}>
@@ -63,7 +84,21 @@ export function ProfilePanel({
           ))}
         </ul>
       </Section>
-      <Section title={t("profiles.roles.title")}>
+      <Section
+        title={t("profiles.roles.title")}
+        actions={
+          <TableExport
+            name={t("profiles.roles.title")}
+            filename={file("roles")}
+            columns={[t("profiles.roles.role"), t("profiles.roles.agent"), ...figuresColumns]}
+            rows={sortedRoles(profile.roles).map((row) => [
+              roleCategory(row.role),
+              row.role,
+              ...figuresCsv(row),
+            ])}
+          />
+        }
+      >
         <Table
           label={t("profiles.roles.title")}
           head={
@@ -89,7 +124,20 @@ export function ProfilePanel({
           </tbody>
         </Table>
       </Section>
-      <Section title={t("profiles.efforts.title")}>
+      <Section
+        title={t("profiles.efforts.title")}
+        actions={
+          <TableExport
+            name={t("profiles.efforts.title")}
+            filename={file("efforts")}
+            columns={[t("profiles.efforts.model"), t("profiles.efforts.effort"), ...figuresColumns]}
+            rows={effortGroups(profile.efforts).flatMap((group) => {
+              const model = [group.provider, group.model].filter(Boolean).join("/");
+              return group.rows.map((row) => [model, row.effort, ...figuresCsv(row)]);
+            })}
+          />
+        }
+      >
         <Table
           label={t("profiles.efforts.title")}
           head={
@@ -123,7 +171,22 @@ export function ProfilePanel({
           })}
         </Table>
       </Section>
-      <Section title={t("profiles.subscriptions.title")}>
+      <Section
+        title={t("profiles.subscriptions.title")}
+        actions={
+          <TableExport
+            name={t("profiles.subscriptions.title")}
+            filename={file("subscriptions")}
+            columns={[t("profiles.subscriptions.subscription"), ...figuresColumns]}
+            rows={profile.subscriptions.map((row) => [
+              row.subscriptionId === null
+                ? t("profiles.subscriptions.payAsYouGo")
+                : row.subscriptionId,
+              ...figuresCsv(row),
+            ])}
+          />
+        }
+      >
         <Table
           label={t("profiles.subscriptions.title")}
           head={
@@ -147,7 +210,21 @@ export function ProfilePanel({
           </tbody>
         </Table>
       </Section>
-      <Section title={t("profiles.sessions.title")}>
+      <Section
+        title={t("profiles.sessions.title")}
+        actions={
+          <TableExport
+            name={t("profiles.sessions.title")}
+            filename={file("sessions")}
+            columns={[
+              t("profiles.sessions.started"),
+              t("profiles.sessions.agent"),
+              ...figuresColumns,
+            ]}
+            rows={profile.sessions.map((row) => [row.startedAt, row.agent, ...figuresCsv(row)])}
+          />
+        }
+      >
         <Table
           label={t("profiles.sessions.title")}
           head={

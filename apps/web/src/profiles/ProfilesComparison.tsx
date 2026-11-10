@@ -1,14 +1,17 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { LoadingState } from "../components/LoadingState";
 import { Panel } from "../components/Panel";
+import type { ChartHandle } from "../explorer/Chart";
+import { ChartExport } from "../export/ChartExport";
+import { TableExport } from "../export/TableExport";
 import { formatNumber, formatTokensM, formatUsd } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { usePreferences } from "../prefs/usePreferences";
 import { THEME_TOKENS } from "../theme/tokens";
 import type { ProfileReport } from "./contract";
 import { AttributionText, costText } from "./FiguresCells";
-import { comparisonRows, comparisonSpec } from "./state";
+import { attributionOf, comparisonRows, comparisonSpec, perSession } from "./state";
 
 // Vega is most of the bundle: load it only when the comparison is shown (as in the Explorer).
 const Chart = lazy(() => import("../explorer/Chart").then((module) => ({ default: module.Chart })));
@@ -17,11 +20,14 @@ const Chart = lazy(() => import("../explorer/Chart").then((module) => ({ default
 export function ProfilesComparison({
   profiles,
   language,
+  slug,
 }: {
   profiles: readonly ProfileReport[];
   language: Language;
+  slug: string;
 }) {
   const { t } = useTranslation();
+  const chart = useRef<ChartHandle | null>(null);
   const { resolvedTheme } = usePreferences();
   const palette = THEME_TOKENS.themes[resolvedTheme].chart;
   const rows = comparisonRows(profiles, palette);
@@ -38,12 +44,50 @@ export function ProfilesComparison({
   );
   const spec = useMemo(() => JSON.parse(specText) as Record<string, unknown>, [specText]);
   const noCost = t("profiles.noCost");
+  const title = t("profiles.comparison.title");
 
   return (
-    <Panel title={t("profiles.comparison.title")}>
+    <Panel
+      title={title}
+      actions={
+        <>
+          <ChartExport chart={chart} name={title} filename={`profiles-comparison-${slug}`} />
+          <TableExport
+            name={t("profiles.comparison.table")}
+            filename={`profiles-comparison-${slug}`}
+            columns={[
+              t("profiles.column.profile"),
+              t("profiles.column.sessions"),
+              t("profiles.column.turns"),
+              t("profiles.column.tokens"),
+              t("profiles.column.tokensPerSession"),
+              t("profiles.column.computedCost"),
+              t("profiles.column.costPerSession"),
+              t("profiles.column.reportedCost"),
+              t("profiles.column.attribution"),
+            ]}
+            rows={profiles.map((profile) => {
+              const totals = profile.totals;
+              return [
+                profile.name,
+                totals.sessions,
+                totals.turns,
+                totals.total,
+                perSession(totals).tokens,
+                totals.computedCost,
+                perSession(totals).cost,
+                totals.reportedCost,
+                attributionOf(totals),
+              ];
+            })}
+          />
+        </>
+      }
+    >
       <div className="profiles__chart">
         <Suspense fallback={<LoadingState />}>
           <Chart
+            chartRef={chart}
             spec={spec}
             datasets={datasets}
             label={t("profiles.comparison.chartName")}

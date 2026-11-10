@@ -5,6 +5,7 @@ import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { Panel } from "../components/Panel";
 import { SegmentedControl } from "../components/SegmentedControl";
+import { rangeSlug } from "../export/download";
 import { formatNumber, formatTokensM } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { isProfiles, type ProfileFigures } from "../profiles/contract";
@@ -91,15 +92,16 @@ export function ProfilesView() {
       />
     );
   } else {
+    const slug = rangeSlug(period.from, period.to);
     body = (
       <>
         {data.profiles.length === 0 ? (
           <EmptyState title={t("profiles.noProfiles.title")} body={t("profiles.noProfiles.body")} />
         ) : (
           <>
-            <ProfilesComparison profiles={data.profiles} language={language} />
+            <ProfilesComparison profiles={data.profiles} language={language} slug={slug} />
             {data.profiles.map((profile) => (
-              <ProfilePanel key={profile.name} profile={profile} language={language} />
+              <ProfilePanel key={profile.name} profile={profile} language={language} slug={slug} />
             ))}
           </>
         )}

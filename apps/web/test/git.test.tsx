@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GitReport } from "../src/git/contract";
@@ -9,7 +9,7 @@ import es from "../src/i18n/es.json";
 import { createI18n } from "../src/i18n/i18n";
 import { PreferencesProvider } from "../src/prefs/usePreferences";
 import { dateTimeFormat } from "../src/session/labels";
-import { fakeColorScheme, memoryStorage } from "./helpers";
+import { type DownloadSeam, fakeColorScheme, installDownloadSeam, memoryStorage } from "./helpers";
 
 const from = "2026-01-01T00:00:00.000Z";
 const to = "2026-01-08T00:00:00.000Z";
@@ -98,8 +98,10 @@ const json = (body: unknown, status = 200) =>
 const fetcher = vi.fn<typeof fetch>();
 let requests: string[] = [];
 let body: () => Response | Promise<Response>;
+let seam: DownloadSeam;
 
 beforeEach(() => {
+  seam = installDownloadSeam();
   window.history.replaceState(
     null,
     "",
@@ -118,6 +120,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  seam.restore();
   vi.unstubAllGlobals();
 });
 
@@ -316,5 +319,104 @@ describe("Git view (T3, S4, L20 item 1)", () => {
     expect(cells(one)).toContain("100.000");
     expect(cells(one)).toContain("2,0 M");
     expect(requests.length).toBe(before);
+  });
+});
+
+describe("Git exports (S7, Phase 4 L30)", () => {
+  const csv = (scope: HTMLElement, name: string) =>
+    within(scope).getByRole("button", { name: en.export.csvAria.replace("{{name}}", name) });
+  const header = (keys: readonly string[]) =>
+    keys.map((key) => (en.git.column as Record<string, string>)[key] ?? key).join(",");
+
+  it("offers PNG and SVG for the tokens-per-commit chart", async () => {
+    await view();
+    const timeline = await region(en.git.timeline.title);
+    const png = within(timeline).getByRole("button", {
+      name: en.export.pngAria.replace("{{name}}", en.git.timeline.title),
+    });
+    expect(png.textContent).toBe(en.export.png);
+    const svg = within(timeline).getByRole("button", {
+      name: en.export.svgAria.replace("{{name}}", en.git.timeline.title),
+    });
+    expect(svg.textContent).toBe(en.export.svg);
+  });
+
+  it("downloads the commits table as CSV with localized headers and raw values", async () => {
+    await view();
+    fireEvent.click(csv(await region(en.git.commits.title), en.git.commits.title));
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    const expected = [
+      header([
+        "repository",
+        "sha",
+        "subject",
+        "date",
+        "additions",
+        "deletions",
+        "tokens",
+        "computedCost",
+        "reportedCost",
+        "sessions",
+        "pullRequest",
+        "tokensPerNetLine",
+      ]),
+      "repo-a,abc1234,feat: one,2026-01-02T10:05:00.000Z,30,10,2000000,4,,1,,100000",
+      "repo-a,def5678,fix: two,2026-01-03T11:00:00.000Z,1,5,500000,,1.5,2,7,",
+    ].join("\r\n");
+    expect(seam.downloads[0]?.name).toBe("git-commits-2026-01-01-2026-01-08.csv");
+    expect(await seam.text(seam.downloads[0])).toBe(`${expected}\r\n`);
+  });
+
+  it("downloads the pull requests and orphan sessions tables as CSV", async () => {
+    await view();
+    const pullRequests = await region(en.git.pullRequests.title);
+    const orphans = await region(en.git.orphans.title);
+    fireEvent.click(csv(pullRequests, en.git.pullRequests.title));
+    fireEvent.click(csv(orphans, en.git.orphans.title));
+    await waitFor(() => expect(seam.downloads).toHaveLength(2));
+    expect(seam.downloads.map((download) => download.name)).toEqual([
+      "git-pull-requests-2026-01-01-2026-01-08.csv",
+      "git-orphan-sessions-2026-01-01-2026-01-08.csv",
+    ]);
+    expect(await seam.text(seam.downloads[0])).toBe(
+      `${[
+        header([
+          "pullRequest",
+          "repository",
+          "commits",
+          "additions",
+          "deletions",
+          "tokens",
+          "computedCost",
+          "reportedCost",
+          "tokensPerNetLine",
+        ]),
+        "7,repo-a,1,1,5,500000,,1.5,",
+        "9,repo-b,3,50,10,4000000,2,3,100000",
+      ].join("\r\n")}\r\n`,
+    );
+    expect(await seam.text(seam.downloads[1])).toBe(
+      `${[
+        header([
+          "started",
+          "agent",
+          "repository",
+          "tokens",
+          "computedCost",
+          "reportedCost",
+          "hadCommits",
+        ]),
+        "2026-01-02T09:00:00.000Z,claude-code,repo-a,1500000,3,,true",
+        "2026-01-04T09:00:00.000Z,pi,,500000,,,false",
+      ].join("\r\n")}\r\n`,
+    );
+  });
+
+  it("is inert for an empty table", async () => {
+    body = () => json(answer({ pullRequests: [] }));
+    await view();
+    const pullRequests = await region(en.git.pullRequests.title);
+    expect((csv(pullRequests, en.git.pullRequests.title) as HTMLButtonElement).disabled).toBe(true);
+    expect(seam.downloads).toHaveLength(0);
   });
 });

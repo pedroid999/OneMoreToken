@@ -43,7 +43,22 @@
   font-weight: var(--font-weight-medium);
 }
 
-.quota__section > .quota__subtitle:first-child {
+/* Section header with its export controls beside the title (spec §9 S7, L30). */
+.quota__subtitle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.quota__subtitle-row > .quota__subtitle {
+  margin: 0;
+}
+
+.quota__section > .quota__subtitle:first-child,
+.quota__section > .quota__subtitle-row:first-child {
   margin-top: 0;
 }
 

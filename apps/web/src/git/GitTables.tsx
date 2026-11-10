@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Panel } from "../components/Panel";
+import { TableExport } from "../export/TableExport";
 import { formatNumber, formatTokensM, formatUsd } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { agentLabel, dateTimeFormat } from "../session/labels";
@@ -75,16 +76,41 @@ const COMMIT_COLUMNS: readonly Column[] = [
 export function CommitsTable({
   commits,
   language,
+  filename,
 }: {
   commits: readonly GitCommit[];
   language: Language;
+  filename: string;
 }) {
   const { t } = useTranslation();
   const cells = useCells(language);
   const format = dateTimeFormat(language);
   const title = t("git.commits.title");
   return (
-    <Panel title={title}>
+    <Panel
+      title={title}
+      actions={
+        <TableExport
+          name={title}
+          filename={filename}
+          columns={COMMIT_COLUMNS.map(([key]) => t(`git.column.${key}`))}
+          rows={commits.map((commit) => [
+            commit.repo,
+            commit.sha,
+            commit.subject,
+            commit.authoredAt,
+            commit.additions,
+            commit.deletions,
+            commit.tokens,
+            commit.computedCostUsd,
+            commit.reportedCostUsd,
+            commit.sessions,
+            commit.pullRequest,
+            tokensPerNetLine(commit),
+          ])}
+        />
+      }
+    >
       <Table
         label={title}
         columns={COMMIT_COLUMNS}
@@ -134,15 +160,37 @@ const PR_COLUMNS: readonly Column[] = [
 export function PullRequestsTable({
   pullRequests,
   language,
+  filename,
 }: {
   pullRequests: readonly GitPullRequest[];
   language: Language;
+  filename: string;
 }) {
   const { t } = useTranslation();
   const cells = useCells(language);
   const title = t("git.pullRequests.title");
   return (
-    <Panel title={title}>
+    <Panel
+      title={title}
+      actions={
+        <TableExport
+          name={title}
+          filename={filename}
+          columns={PR_COLUMNS.map(([key]) => t(`git.column.${key}`))}
+          rows={pullRequests.map((pr) => [
+            pr.number,
+            pr.repo,
+            pr.commits,
+            pr.additions,
+            pr.deletions,
+            pr.tokens,
+            pr.computedCostUsd,
+            pr.reportedCostUsd,
+            tokensPerNetLine(pr),
+          ])}
+        />
+      }
+    >
       <Table
         label={title}
         columns={PR_COLUMNS}
@@ -179,16 +227,36 @@ const ORPHAN_COLUMNS: readonly Column[] = [
 export function OrphansTable({
   sessions,
   language,
+  filename,
 }: {
   sessions: readonly GitOrphanSession[];
   language: Language;
+  filename: string;
 }) {
   const { t } = useTranslation();
   const cells = useCells(language);
   const format = dateTimeFormat(language);
   const title = t("git.orphans.title");
   return (
-    <Panel title={title}>
+    <Panel
+      title={title}
+      actions={
+        <TableExport
+          name={title}
+          filename={filename}
+          columns={ORPHAN_COLUMNS.map(([key]) => t(`git.column.${key}`))}
+          rows={sessions.map((session) => [
+            session.startedAt,
+            session.agent,
+            session.repo,
+            session.tokens,
+            session.computedCostUsd,
+            session.reportedCostUsd,
+            session.hadCommit,
+          ])}
+        />
+      }
+    >
       <p className="git__muted">{t("git.orphans.body")}</p>
       <Table
         label={title}
