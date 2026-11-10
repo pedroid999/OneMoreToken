@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -296,11 +296,44 @@ describe("omt serve", () => {
     });
 
     expect(code).toBe(0);
-    expect(health).toEqual({ status: "ok", schemaVersion: 8 });
+    expect(health).toEqual({ status: "ok", schemaVersion: 9 });
     expect(existsSync(dbPath)).toBe(true);
     expect(c.err()).toBe("");
     expect(c.out()).toMatch(
       /^omt serve: listening on http:\/\/127\.0\.0\.1:\d+ \(database: .*omt\.duckdb\)\nomt serve: stopped\n$/,
+    );
+  });
+
+  it("warns once when alerts are configured but no channel can deliver", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omt-cli-alerts-"));
+    dirs.push(dir);
+    const config = join(dir, "config");
+    mkdirSync(join(config, "one-more-token"), { recursive: true });
+    writeFileSync(
+      join(config, "one-more-token", "alerts.json"),
+      JSON.stringify({
+        version: 1,
+        alerts: [
+          {
+            id: "go-40",
+            subscriptionId: "go",
+            windowKind: "five_hours",
+            thresholdPct: 40,
+            channel: "telegram",
+          },
+        ],
+      }),
+    );
+
+    const c = capture({ XDG_CONFIG_HOME: config, XDG_DATA_HOME: join(dir, "data") });
+    const code = await run(["serve", "--port", "0", "--db", join(dir, "omt.duckdb")], c.io, {
+      async waitForShutdown() {},
+    });
+
+    expect(code).toBe(0);
+    // Nothing left the machine: without both credentials there is no channel at all.
+    expect(c.err()).toBe(
+      "omt serve: alerts are configured but no channel can deliver: set --telegram-bot-token and --telegram-chat-id\n",
     );
   });
 });

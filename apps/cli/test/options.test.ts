@@ -39,6 +39,8 @@ describe("parseServeOptions", () => {
         reportsDirectory: join(HOME, ".local", "share", "one-more-token", "reports"),
         reportLanguage: "es",
         reportIntervalMs: 3_600_000,
+        alertsConfigPath: join(HOME, ".config", "one-more-token", "alerts.json"),
+        alertIntervalMs: 3_600_000,
         help: false,
       },
     });

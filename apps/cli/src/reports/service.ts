@@ -2,8 +2,6 @@ import {
   type Database,
   lastEndedMonth,
   lastEndedWeek,
-  loadSubscriptions,
-  loadUserSubscriptions,
   type MonthlyReportData,
   type PricingFile,
   type ReportAgent,
@@ -18,6 +16,7 @@ import {
   type WeeklyReportData,
   weekPeriod,
 } from "@omt/core";
+import { allowedWindowsFor } from "../calibrations/allowed";
 import { createCalibrationStore } from "../calibrations/store";
 import { withDatabase } from "../db-queue";
 import type { GitReport } from "../git/service";
@@ -176,20 +175,10 @@ async function quotaRowsOf(
   options: ReportsOptions,
 ): Promise<ReportQuota[]> {
   // Same rule as the API: which window kinds a subscription may calibrate.
-  const calibrations = createCalibrationStore(options.calibrationsPath, () => {
-    const plans = loadSubscriptions();
-    const config = loadUserSubscriptions(options.configPath, plans);
-    if (!config.ok) return null;
-    const windows = new Map(
-      plans.plans.map((plan) => [plan.id, plan.windows.map((window) => window.kind)]),
-    );
-    return new Map(
-      config.file.subscriptions.map((subscription) => [
-        subscription.id,
-        new Set(windows.get(subscription.planId) ?? []),
-      ]),
-    );
-  });
+  const calibrations = createCalibrationStore(
+    options.calibrationsPath,
+    allowedWindowsFor(options.configPath),
+  );
   const readings = await calibrations.list().catch(() => null);
   // As of the end of the period: a closed report must not depend on when the pass ran (L27(4)).
   const quotas = await readQuotas(db, {

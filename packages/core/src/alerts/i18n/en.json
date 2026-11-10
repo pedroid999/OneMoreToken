@@ -1,0 +1,11 @@
+{
+  "alert.subject": "Quota at {{pct}}: {{subscription}}",
+  "alert.window": "Window {{window}}, ends at {{endsAt}}",
+  "alert.usage": "Usage {{pct}} ({{used}} of {{limit}})",
+  "alert.threshold": "Alert configured at {{threshold}}",
+  "alert.estimate": "Estimated figure from turns and calibration readings.",
+  "window.five_hours": "5 h",
+  "window.weekly": "weekly",
+  "window.monthly": "monthly",
+  "value.unknownLimit": "unknown limit"
+}

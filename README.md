@@ -242,13 +242,38 @@ CSV is machine-ready rather than pretty-printed: the **header row uses the same 
 
 Exports are produced entirely in your browser from data the dashboard already holds: nothing is uploaded, there is no telemetry, and no new network request is made (spec §10).
 
+### Threshold alerts
+
+An alert watches one quota window of one subscription and tells you when it crosses a percentage of its limit (spec §9). Alerts live in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/alerts.json`, next to your subscriptions:
+
+```json
+{
+  "version": 1,
+  "alerts": [
+    {
+      "id": "chatgpt-plus-five-hours-80",
+      "subscriptionId": "chatgpt-plus",
+      "windowKind": "five_hours",
+      "thresholdPct": 80,
+      "channel": "telegram"
+    }
+  ]
+}
+```
+
+`windowKind` is `five_hours`, `weekly` or `monthly`, and `thresholdPct` goes from 1 to 100. Only the window instance that is active at the moment of the pass is considered, so an old window never arrives as a surprise on the first run, and an instance whose limit is still unknown stays quiet. Each instance produces at most one message: the same window never repeats, and the next instance of that window alerts again when it crosses the threshold. A message that could not be delivered is retried on the next pass while its window is still open.
+
+The first channel is **Telegram**, the only one there is today; the channel is looked up by the `channel` id, so an id nobody registered is a configuration error instead of a silent no-op. Credentials come from `--telegram-bot-token` / `--telegram-chat-id` or `OMT_TELEGRAM_BOT_TOKEN` / `OMT_TELEGRAM_CHAT_ID`, a flag winning over the environment; prefer the environment variables, because a token typed on the command line also reaches your shell history and the process list. The bot token is never logged, never stored in the database and never written to the alert state; without both values no channel exists, the alerts are never delivered and one warning at startup tells you what is missing. Nothing is sent anywhere unless you configure a channel and an alert (spec §10).
+
+A pass runs at startup and then every hour (`--alert-interval-ms`, `0` keeps only the startup pass); a failed pass is logged and never stops the server. The message uses the language of `--report-lang`, states the subscription, the window, the threshold, the estimated usage, the cost against the limit and when the window ends, and it holds aggregates only: no prompts, messages, reasoning or tool output. Which instance was already delivered is remembered in the `alert_notifications` table of the local database.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
 - The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
 - Agent session files are only read, never modified.
 - Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`; the queries you save from the SQL console are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/`; the markdown reports are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/reports/`.
-- Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
+- Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`; your threshold alerts in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/alerts.json`.
 
 ### Keep your Claude Code history
 
