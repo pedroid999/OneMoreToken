@@ -8,6 +8,8 @@ export const DEFAULT_PORT = 7317;
 export const DEFAULT_HOST = "127.0.0.1";
 /** Weekly and monthly reports: one pass per hour, cheap and bounded (L27). */
 export const DEFAULT_REPORT_INTERVAL_MS = 3_600_000;
+/** Threshold alerts share that cadence: a window moves on the hour, so one pass is enough (T7). */
+export const DEFAULT_ALERT_INTERVAL_MS = 3_600_000;
 /** The dashboard's default language is Spanish; reports follow it unless told otherwise. */
 export const DEFAULT_REPORT_LANGUAGE: ReportLanguage = "es";
 
@@ -19,6 +21,12 @@ export interface ServeOptions {
   reportsDirectory: string;
   reportLanguage: ReportLanguage;
   reportIntervalMs: number;
+  /** The user's threshold alerts (T7, spec §9). */
+  alertsConfigPath: string;
+  alertIntervalMs: number;
+  /** Telegram credentials: without both of them no channel exists and nothing leaves the machine. */
+  telegramBotToken?: string | undefined;
+  telegramChatId?: string | undefined;
   help: boolean;
 }
 
@@ -59,6 +67,11 @@ export function defaultSubscriptionsConfigPath(env: NodeJS.ProcessEnv, home: str
   return join(env.XDG_CONFIG_HOME || join(home, ".config"), "one-more-token", "subscriptions.json");
 }
 
+/** Threshold alerts (T7): beside the subscriptions, because an alert names one of them (spec §9). */
+export function defaultAlertsConfigPath(env: NodeJS.ProcessEnv, home: string): string {
+  return join(env.XDG_CONFIG_HOME || join(home, ".config"), "one-more-token", "alerts.json");
+}
+
 export function parseServeOptions(
   args: string[],
   env: NodeJS.ProcessEnv,
@@ -70,6 +83,10 @@ export function parseServeOptions(
     db?: string | undefined;
     "report-lang"?: string | undefined;
     "report-interval-ms"?: string | undefined;
+    "alerts-config"?: string | undefined;
+    "alert-interval-ms"?: string | undefined;
+    "telegram-bot-token"?: string | undefined;
+    "telegram-chat-id"?: string | undefined;
   };
   let help = false;
   try {
@@ -83,6 +100,10 @@ export function parseServeOptions(
         db: { type: "string" },
         "report-lang": { type: "string" },
         "report-interval-ms": { type: "string" },
+        "alerts-config": { type: "string" },
+        "alert-interval-ms": { type: "string" },
+        "telegram-bot-token": { type: "string" },
+        "telegram-chat-id": { type: "string" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -122,6 +143,24 @@ export function parseServeOptions(
     reportIntervalMs = Number(interval);
   }
 
+  let alertIntervalMs = DEFAULT_ALERT_INTERVAL_MS;
+  const alertInterval = values["alert-interval-ms"];
+  if (alertInterval !== undefined) {
+    if (!/^\d+$/.test(alertInterval) || Number(alertInterval) > 86_400_000) {
+      return {
+        ok: false,
+        error: `invalid --alert-interval-ms "${alertInterval}": expected an integer between 0 and 86400000`,
+      };
+    }
+    alertIntervalMs = Number(alertInterval);
+  }
+
+  // Credentials are optional: absent or blank means "no channel", never "send anyway".
+  const credentials = (flag: string | undefined, name: string): string | undefined => {
+    const value = (flag ?? env[name] ?? "").trim();
+    return value === "" ? undefined : value;
+  };
+
   return {
     ok: true,
     options: {
@@ -131,6 +170,10 @@ export function parseServeOptions(
       reportsDirectory: defaultReportsDirectory(env, home),
       reportLanguage: language,
       reportIntervalMs,
+      alertsConfigPath: values["alerts-config"] ?? defaultAlertsConfigPath(env, home),
+      alertIntervalMs,
+      telegramBotToken: credentials(values["telegram-bot-token"], "OMT_TELEGRAM_BOT_TOKEN"),
+      telegramChatId: credentials(values["telegram-chat-id"], "OMT_TELEGRAM_CHAT_ID"),
       help,
     },
   };
