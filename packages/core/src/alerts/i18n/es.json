@@ -1,0 +1,11 @@
+{
+  "alert.subject": "Cuota al {{pct}}: {{subscription}}",
+  "alert.window": "Ventana {{window}}, termina el {{endsAt}}",
+  "alert.usage": "Uso {{pct}} ({{used}} de {{limit}})",
+  "alert.threshold": "Aviso configurado al {{threshold}}",
+  "alert.estimate": "Cifra estimada a partir de los turnos y de las lecturas de calibración.",
+  "window.five_hours": "de 5 h",
+  "window.weekly": "semanal",
+  "window.monthly": "mensual",
+  "value.unknownLimit": "límite desconocido"
+}

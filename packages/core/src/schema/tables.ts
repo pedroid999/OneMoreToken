@@ -186,6 +186,15 @@ export const TurnCommitSchema = z.object({
   sha: CommitSchema.shape.sha,
 });
 
+export const AlertNotificationSchema = z.object({
+  alert_id: id,
+  subscription_id: id,
+  kind: WindowKindSchema,
+  window_start: timestamp,
+  threshold_pct: z.number().min(1).max(100),
+  sent_at: timestamp,
+});
+
 export const IngestIssueSchema = z.object({
   id,
   source_id: nullable(id),
@@ -218,6 +227,7 @@ export const TABLE_SCHEMAS = {
   session_repos: SessionRepoSchema,
   commit_pull_requests: CommitPullRequestSchema,
   turn_commits: TurnCommitSchema,
+  alert_notifications: AlertNotificationSchema,
 } as const;
 
 export type TableName = keyof typeof TABLE_SCHEMAS;
