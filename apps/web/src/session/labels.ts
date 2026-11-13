@@ -3,6 +3,7 @@ import type { Language } from "../i18n/i18n";
 
 const AGENT_KEYS: Record<string, string> = {
   "claude-code": "claudeCode",
+  codex: "codex",
   "gentle-shell": "gentleShell",
   pi: "pi",
   opencode: "opencode",

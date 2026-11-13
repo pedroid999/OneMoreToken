@@ -24,7 +24,7 @@ import type {
 
 export const DEFAULT_SESSIONS_LIMIT = 100;
 export const MAX_SESSIONS_LIMIT = 500;
-const AGENTS: readonly IngestAgent[] = ["claude-code", "gentle-shell", "pi", "opencode"];
+const AGENTS: readonly IngestAgent[] = ["claude-code", "codex", "gentle-shell", "pi", "opencode"];
 /** Stored session ids are `recordId(sourceId, "session", nativeId)`: two sha256 hex digests. */
 const SESSION_ID = /^[0-9a-f]{64}:session:[0-9a-f]{64}$/;
 
