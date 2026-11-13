@@ -1,11 +1,24 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
-import { type Database, migrate, openDatabase } from "@omt/core";
+import { type Database, loadAlertsFile, migrate, openDatabase } from "@omt/core";
+import { alertChannels } from "./alerts/channels";
+import { startAlertScheduler } from "./alerts/scheduler";
 import { createApp } from "./app";
 import { formatIngestMetrics, type IngestFetch, requestIngest } from "./ingest/client";
 import { DEFAULT_API_URL, parseIngestOptions } from "./ingest-options";
-import { DEFAULT_HOST, DEFAULT_PORT, parseServeOptions, type ServeOptions } from "./options";
+import {
+  DEFAULT_ALERT_INTERVAL_MS,
+  DEFAULT_HOST,
+  DEFAULT_PORT,
+  DEFAULT_REPORT_INTERVAL_MS,
+  DEFAULT_REPORT_LANGUAGE,
+  defaultCalibrationsPath,
+  defaultSubscriptionsConfigPath,
+  parseServeOptions,
+  type ServeOptions,
+} from "./options";
+import { startReportScheduler } from "./reports/scheduler";
 import { type RunningServer, startServer, waitForSignal } from "./server";
 
 export interface CliIo {
@@ -40,17 +53,35 @@ Options for serve:
   --host <h>      Address to bind (default ${DEFAULT_HOST}, local only)
   --db <path>     DuckDB file (default $OMT_DB, else
                   \${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb)
+  --report-lang <es|en>
+                  Language of the markdown reports (default $OMT_REPORT_LANGUAGE, else
+                  "${DEFAULT_REPORT_LANGUAGE}")
+  --report-interval-ms <n>
+                  Milliseconds between report passes (default ${DEFAULT_REPORT_INTERVAL_MS};
+                  0 keeps the startup pass only)
+  --alerts-config <path>
+                  Threshold alerts file (default
+                  \${XDG_CONFIG_HOME:-~/.config}/one-more-token/alerts.json)
+  --alert-interval-ms <n>
+                  Milliseconds between alert passes (default ${DEFAULT_ALERT_INTERVAL_MS};
+                  0 keeps the startup pass only)
+  --telegram-bot-token <token>
+                  Telegram bot token for the alert channel (default
+                  $OMT_TELEGRAM_BOT_TOKEN); it is never logged
+  --telegram-chat-id <id>
+                  Telegram chat that receives the alerts (default $OMT_TELEGRAM_CHAT_ID)
 
 Options for ingest (start omt serve first):
   --url <url>           Loopback HTTP API URL (default ${DEFAULT_API_URL})
-  --agent <agent>       claude-code, gentle-shell, pi or opencode (default: all)
+  --agent <agent>       claude-code, gentle-shell, pi, opencode or codex (default: all)
   --path <directory>    Absolute source directory; requires --agent
                         (opencode: the data directory holding opencode.db/storage)
   --since <timestamp>   ISO timestamp: select files by modification time only
                         (opencode: sessions by last update time)
                         Defaults: ~/.claude/projects/, ~/.gentle-shell/agent/sessions/,
                         ~/.gentle-shell/agent/gentle-agents/ (subagents),
-                        ~/.pi/agent/sessions/, \${XDG_DATA_HOME:-~/.local/share}/opencode/.
+                        ~/.pi/agent/sessions/, \${XDG_DATA_HOME:-~/.local/share}/opencode/,
+                        ~/.codex/sessions/.
                         Source files are read-only; metrics only.
 
 Global options:
@@ -120,6 +151,8 @@ async function serveCommand(args: string[], io: CliIo, deps: CliDeps): Promise<n
 
   let db: Database | undefined;
   let server: RunningServer | undefined;
+  let reports: { stop(): Promise<void> } | undefined;
+  let alerts: { stop(): Promise<void> } | undefined;
   try {
     db = await openMigratedDatabase(parsed.options);
     server = await startServer(
@@ -130,12 +163,50 @@ async function serveCommand(args: string[], io: CliIo, deps: CliDeps): Promise<n
     io.stdout(
       `omt serve: listening on http://${urlHost(server.host)}:${server.port} (database: ${parsed.options.db})\n`,
     );
+    reports = startReportScheduler(db, {
+      directory: parsed.options.reportsDirectory,
+      configPath: defaultSubscriptionsConfigPath(io.env, homedir()),
+      calibrationsPath: defaultCalibrationsPath(io.env, homedir()),
+      language: parsed.options.reportLanguage,
+      intervalMs: parsed.options.reportIntervalMs,
+      now: () => Date.now(),
+      onError: (error) =>
+        io.stderr(`omt serve: report generation failed: ${(error as Error).message}\n`),
+    });
+    const channels = alertChannels(parsed.options);
+    // Without a channel no pass ever runs, so the startup check is the only place to speak up.
+    if (channels.size === 0) {
+      const configured = loadAlertsFile(parsed.options.alertsConfigPath);
+      if (!configured.ok) io.stderr(`omt serve: alerts: ${configured.error}\n`);
+      else if (configured.file.alerts.length > 0) {
+        io.stderr(
+          "omt serve: alerts are configured but no channel can deliver: set --telegram-bot-token and --telegram-chat-id\n",
+        );
+      }
+    }
+    // No channel means no egress at all (spec §10): the pass is not even scheduled.
+    if (channels.size > 0) {
+      alerts = startAlertScheduler(db, {
+        configPath: defaultSubscriptionsConfigPath(io.env, homedir()),
+        calibrationsPath: defaultCalibrationsPath(io.env, homedir()),
+        alertsPath: parsed.options.alertsConfigPath,
+        language: parsed.options.reportLanguage,
+        intervalMs: parsed.options.alertIntervalMs,
+        now: () => Date.now(),
+        channels,
+        onDiagnostic: (message) => io.stderr(`omt serve: ${message}\n`),
+        onError: (error) =>
+          io.stderr(`omt serve: alert pass failed: ${(error as Error).message}\n`),
+      });
+    }
     await (deps.waitForShutdown ?? (() => waitForSignal()))(server);
     return EXIT_OK;
   } catch (error) {
     io.stderr(`omt serve: ${(error as Error).message}\n`);
     return EXIT_USAGE;
   } finally {
+    await alerts?.stop();
+    await reports?.stop();
     await server?.close();
     db?.close();
     if (server) io.stdout("omt serve: stopped\n");

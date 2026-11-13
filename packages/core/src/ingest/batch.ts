@@ -6,6 +6,7 @@ import { ProfileDefinitionSchema, profileHash } from "../profiles/snapshot";
 import {
   IngestIssueSchema,
   ProfileSchema,
+  ProviderQuotaReadingSchema,
   type Row,
   SessionSchema,
   SourceSchema,
@@ -27,7 +28,7 @@ export function sourceFileId(agent: string, path: string): string {
 
 export function recordId(
   sourceId: string,
-  kind: "session" | "turn" | "tool" | "issue",
+  kind: "session" | "turn" | "tool" | "issue" | "quota",
   nativeId: string,
 ): string {
   return `${sourceId}:${kind}:${hashContent(nativeId)}`;
@@ -98,6 +99,8 @@ export const NormalizedBatchSchema = z
       .optional(),
     /** Source-owned: the profile bound when each turn was recorded; unbound turns have no row. */
     profileBindings: z.array(TurnProfileBindingSchema.strict()).optional(),
+    /** Source-owned: quota % readings the provider reported inside this source (Phase 4 D2). */
+    quotaReadings: z.array(ProviderQuotaReadingSchema.strict()).optional(),
   })
   .superRefine((batch, ctx) => {
     const { source } = batch;
@@ -123,6 +126,10 @@ export const NormalizedBatchSchema = z
     unique((batch.subagentRuns ?? []).map((row) => row.id));
     const profiles = unique((batch.profiles ?? []).map((row) => row.hash));
     unique((batch.profileBindings ?? []).map((row) => row.turn_id));
+    unique((batch.quotaReadings ?? []).map((row) => row.id));
+    for (const row of batch.quotaReadings ?? []) {
+      if (!row.id.startsWith(`${source.id}:quota:`) || row.source_id !== source.id) reject();
+    }
     for (const row of batch.profiles ?? []) {
       if (row.hash !== profileHash(row.definition) || row.name !== row.definition.name) reject();
     }

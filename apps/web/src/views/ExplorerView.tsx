@@ -1,12 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { LoadingState } from "../components/LoadingState";
 import { Panel } from "../components/Panel";
 import { SegmentedControl } from "../components/SegmentedControl";
+import type { ChartHandle } from "../explorer/Chart";
 import { FiltersEditor } from "../explorer/FiltersEditor";
-import { ResultsTable } from "../explorer/ResultsTable";
+import { columnLabel, ResultsTable } from "../explorer/ResultsTable";
 import {
   buildChartSpec,
   chartRequirement,
@@ -29,6 +30,9 @@ import {
   viewRangeToPeriod,
 } from "../explorer/state";
 import { ViewsPanel } from "../explorer/ViewsPanel";
+import { ChartExport } from "../export/ChartExport";
+import { rangeSlug } from "../export/download";
+import { TableExport } from "../export/TableExport";
 import type { Language } from "../i18n/i18n";
 import { useLocation } from "../router";
 import "../styles/explorer.css";
@@ -202,6 +206,8 @@ export function ExplorerView() {
   };
 
   const chartLabel = t("explorer.chartName", { title: t(`explorer.chartType.${state.chart}`) });
+  const chart = useRef<ChartHandle | null>(null);
+  const slug = rangeSlug(state.from, state.to);
 
   return (
     <>
@@ -303,6 +309,25 @@ export function ExplorerView() {
           </Panel>
           <Panel
             title={t("explorer.results")}
+            actions={
+              data && data.rows.length > 0 ? (
+                <>
+                  {requirement.ok ? (
+                    <ChartExport
+                      chart={chart}
+                      name={chartLabel}
+                      filename={`explorer-chart-${slug}`}
+                    />
+                  ) : null}
+                  <TableExport
+                    name={t("explorer.dataTable")}
+                    filename={`explorer-results-${slug}`}
+                    columns={data.columns.map((column) => columnLabel(t, column.name, column.type))}
+                    rows={data.rows.map((row) => data.columns.map((column) => row[column.name]))}
+                  />
+                </>
+              ) : null
+            }
             status={
               current?.failed
                 ? "error"
@@ -331,7 +356,13 @@ export function ExplorerView() {
                 ) : null}
                 {requirement.ok ? (
                   <Suspense fallback={<LoadingState />}>
-                    <Chart spec={spec} datasets={datasets} label={chartLabel} language={language} />
+                    <Chart
+                      chartRef={chart}
+                      spec={spec}
+                      datasets={datasets}
+                      label={chartLabel}
+                      language={language}
+                    />
                   </Suspense>
                 ) : (
                   <p className="explorer__warning">

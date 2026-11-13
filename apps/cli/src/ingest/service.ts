@@ -4,6 +4,9 @@ import { homedir } from "node:os";
 import { join, normalize, parse, sep } from "node:path";
 import {
   CLAUDE_CODE_ADAPTER_VERSION,
+  CODEX_ADAPTER_VERSION,
+  codexSessionMeta,
+  createCodexDocument,
   createGentleSubagentDocument,
   GENTLE_SHELL_ADAPTER_VERSION,
   GENTLE_SHELL_SUBAGENT_ADAPTER_VERSION,
@@ -11,6 +14,7 @@ import {
   OPENCODE_ADAPTER_VERSION,
   PI_ADAPTER_VERSION,
   parseClaudeCode,
+  parseCodex,
   parseGentleShell,
   parseGentleShellSubagent,
   parseOpenCode,
@@ -24,11 +28,13 @@ import {
   ingestSource,
   loadPricing,
   readProfilesFile,
+  recomputeCommitAttribution,
   recomputeProfileAttribution,
   type SourceParser,
   upsertProfiles,
 } from "@omt/core";
 import { withDatabase } from "../db-queue";
+import { syncGitRepos } from "../git/sync";
 import { type IngestAgent, type IngestOptions, validateIngestOptions } from "../ingest-options";
 
 /** POST /api/ingest response. All counters are nonnegative integers for this request only.
@@ -69,12 +75,15 @@ export interface IngestServiceOptions {
   /** gentle-shell `profiles.json` (D5). Defaults to the real file only with default discovery
    * (no `roots`), so tests never read the home directory. */
   profilesPath?: string;
+  /** Replaces the read-only git sync (Phase 4 L14); tests use it to simulate a failure. */
+  syncGit?: (db: Database) => Promise<void>;
 }
 const adapters = {
   "claude-code": { version: CLAUDE_CODE_ADAPTER_VERSION, parse: parseClaudeCode },
   "gentle-shell": { version: GENTLE_SHELL_ADAPTER_VERSION, parse: parseGentleShell },
   pi: { version: PI_ADAPTER_VERSION, parse: parsePi },
   opencode: { version: OPENCODE_ADAPTER_VERSION, parse: parseOpenCode },
+  codex: { version: CODEX_ADAPTER_VERSION, parse: parseCodex },
 };
 const sourceFs: IngestFileSystem = {
   lstat,
@@ -98,7 +107,24 @@ export function defaultIngestRoots(
     },
     { agent: "pi", path: join(home, ".pi", "agent", "sessions") },
     { agent: "opencode", path: join(dataHome, "opencode") },
+    { agent: "codex", path: join(home, ".codex", "sessions") },
   ];
+}
+
+/** The Codex sessions root of a walked path: `--path` may point at a `YYYY[/MM[/DD]]` directory
+ * below it, while parent rollouts can live under any other day (L6a). */
+export function codexSessionsRoot(path: string): string {
+  // `normalize` keeps a trailing separator (shell completion adds one): drop empty tail segments.
+  const parts = path.split(sep);
+  while (parts.length > 1 && parts.at(-1) === "") parts.pop();
+  const pattern = [/^\d{4}$/, /^\d{2}$/, /^\d{2}$/];
+  for (let depth = 3; depth > 0; depth--) {
+    const tail = parts.slice(-depth);
+    if (parts.length > depth + 1 && tail.every((part, index) => pattern[index]?.test(part))) {
+      return parts.slice(0, -depth).join(sep);
+    }
+  }
+  return path;
 }
 
 /** One whole-file read at a time; changed/appending files are replaced atomically on the next run.
@@ -166,9 +192,56 @@ export function ingestSessions(
         failure();
       }
     };
-    const file = async (path: string, agent: IngestAgent, info: Stats) => {
-      if (info.mtimeMs < since) return;
-      await ingest(path, agent, () => fs.readFile(path));
+    // Codex rollouts are named `rollout-<ts>-<thread id>.jsonl` (D1); one index per sessions root.
+    const codexThreads = new Map<string, Map<string, string>>();
+    const codexIndex = async (rootPath: string) => {
+      const known = codexThreads.get(rootPath);
+      if (known) return known;
+      const index = new Map<string, string>();
+      codexThreads.set(rootPath, index);
+      const pending = [rootPath];
+      for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
+        const entries = await fs.readdir(dir).catch(() => [] as Dirent[]);
+        for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+          if (entry.isSymbolicLink()) continue;
+          const child = join(dir, entry.name);
+          if (entry.isDirectory()) pending.push(child);
+          const native = entry.isFile()
+            ? /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(.+)\.jsonl$/.exec(entry.name)?.[1]
+            : undefined;
+          if (native && !index.has(native)) index.set(native, child);
+        }
+      }
+      return index;
+    };
+    const codexParent = async (rollout: string, rootPath: string) => {
+      const parentId = codexSessionMeta(rollout)?.parentId;
+      return parentId ? (await codexIndex(codexSessionsRoot(rootPath))).get(parentId) : undefined;
+    };
+    const file = async (path: string, agent: IngestAgent, info: Stats, rootPath: string) => {
+      if (agent !== "codex") {
+        if (info.mtimeMs < since) return;
+        return ingest(path, agent, () => fs.readFile(path));
+      }
+      if (info.mtimeMs < since) {
+        // An older child is still re-ingested when its parent rollout changed since `since`, so it
+        // links to a parent that appeared later (L6c). Reading it never writes or locks it.
+        let rollout: string;
+        try {
+          rollout = await fs.readFile(path);
+        } catch {
+          return failure();
+        }
+        const parentPath = await codexParent(rollout, rootPath);
+        const parent = parentPath ? await fs.lstat(parentPath).catch(() => null) : null;
+        if (!parentPath || !parent || parent.mtimeMs < since) return;
+        return ingest(path, agent, async () => createCodexDocument({ rollout, parentPath }));
+      }
+      await ingest(path, agent, async () => {
+        const rollout = await fs.readFile(path);
+        const parentPath = await codexParent(rollout, rootPath);
+        return parentPath ? createCodexDocument({ rollout, parentPath }) : rollout;
+      });
     };
     // One virtual source per session (`<root>/sessions/<id>`); the reader never writes or locks.
     const opencode = async (path: string) => {
@@ -266,7 +339,7 @@ export function ingestSessions(
         );
       }
     };
-    const walk = async (path: string, agent: IngestAgent): Promise<void> => {
+    const walk = async (path: string, agent: IngestAgent, rootPath = path): Promise<void> => {
       let entries: Dirent[];
       try {
         entries = await fs.readdir(path);
@@ -281,8 +354,9 @@ export function ingestSessions(
         try {
           const info = await fs.lstat(child);
           if (info.isSymbolicLink()) continue;
-          if (info.isDirectory()) await walk(child, agent);
-          else if (info.isFile() && child.endsWith(".jsonl")) await file(child, agent, info);
+          if (info.isDirectory()) await walk(child, agent, rootPath);
+          else if (info.isFile() && child.endsWith(".jsonl"))
+            await file(child, agent, info, rootPath);
         } catch {
           failure();
         }
@@ -314,8 +388,17 @@ export function ingestSessions(
         failure();
       }
     }
-    // Derived: rewritten in full after every ingest, whatever changed (L10).
+    // Read-only git links of the sessions' repositories (Phase 4 L14); never counted in metrics.
+    // Sources are already persisted: a git failure keeps the previous links and must not fail
+    // the response or skip the derived rewrites below.
+    try {
+      await (options.syncGit ?? syncGitRepos)(db);
+    } catch {
+      // Keep the last synced git links.
+    }
+    // Derived: rewritten in full after every ingest, whatever changed (L10, Phase 4 L14 (3)).
     await recomputeProfileAttribution(db);
+    await recomputeCommitAttribution(db);
     return metrics;
   });
 }

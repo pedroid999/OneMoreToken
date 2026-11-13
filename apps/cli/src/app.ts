@@ -3,9 +3,11 @@ import {
   type Database,
   loadSubscriptions,
   loadUserSubscriptions,
+  MAX_SAVED_QUERY_BYTES,
   syncCalibrations,
 } from "@omt/core";
 import { type Context, Hono } from "hono";
+import { listCalibrations } from "./calibrations/list";
 import {
   CalibrationError,
   createCalibrationStore,
@@ -14,17 +16,30 @@ import {
 import { withDatabase } from "./db-queue";
 import { isJsonRequest, readBoundedJson } from "./explorer/http";
 import { parseExplorerQuery, readExplorer } from "./explorer/service";
+import { readGit } from "./git/service";
 import { readIngestJson, safeIngestOrigin } from "./ingest/http";
 import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
 import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
 import {
   defaultCalibrationsPath,
+  defaultSavedQueriesDirectory,
   defaultSubscriptionsConfigPath,
   defaultViewsDirectory,
 } from "./options";
 import { readProfiles } from "./profiles/service";
 import { readQuotas } from "./quotas/service";
 import { isSessionId, parseSessionsQuery, readSession, readSessions } from "./sessions/service";
+import {
+  InvalidSqlError,
+  MAX_SQL_BYTES,
+  parseSqlBody,
+  QueryTimeoutError,
+  runSql,
+  SQL_ROW_LIMIT,
+  SQL_TIMEOUT_MS,
+  sqlMessage,
+} from "./sql/service";
+import { createSavedQueryStore, SavedQueryError } from "./sql/views";
 import { readSummary, summaryPeriod } from "./summary/service";
 import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
 
@@ -44,6 +59,8 @@ export interface AppOptions {
   subscriptions?: { configPath?: string };
   /** Manual quota readings; tests pass a temporary file instead of the real data home. */
   calibrations?: { path?: string };
+  /** SQL console: saved queries and the statement timeout; tests pin both. */
+  sql?: { directory?: string; timeoutMs?: number };
   /** Clock for quota windows and pace projection; tests pin it. */
   quotas?: { now?: () => number };
 }
@@ -218,7 +235,9 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
   app.get("/api/calibrations", async (c) => {
     c.header("Cache-Control", "no-store");
     try {
-      return c.json({ calibrations: await calibrations.list() });
+      return c.json({
+        calibrations: await listCalibrations(db, calibrations, subscriptionsConfigPath),
+      });
     } catch (error) {
       return calibrationFailure(c, error);
     }
@@ -286,6 +305,87 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       return c.json(await readProfiles(db, { period, configPath: subscriptionsConfigPath }));
     } catch {
       return c.json({ error: "profiles unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/git", async (c) => {
+    const period = summaryPeriod(new URL(c.req.url).searchParams, quotasNow());
+    if (!period) return c.json({ error: "invalid git period" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readGit(db, period));
+    } catch {
+      return c.json({ error: "git unavailable" }, 500);
+    }
+  });
+
+  const savedQueries = createSavedQueryStore({
+    directory: options.sql?.directory ?? defaultSavedQueriesDirectory(process.env, homedir()),
+  });
+  const savedQueryFailure = (c: Context, error: unknown) =>
+    error instanceof SavedQueryError
+      ? c.json({ error: error.message }, error.status)
+      : c.json({ error: "sql views unavailable" }, 500);
+
+  /** Read-only DuckDB console (spec §7.1): the text is wrapped into a subquery before it runs. */
+  app.post("/api/sql/query", async (c) => {
+    const rejected = guardWrite(c, true);
+    if (rejected) return rejected;
+    let sql: string | null = null;
+    try {
+      sql = parseSqlBody(await readBoundedJson(c.req.raw, MAX_SQL_BYTES));
+    } catch {
+      // Malformed, oversized or multi-statement text: the same fixed diagnostic.
+    }
+    if (!sql) return c.json({ error: "invalid sql" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(
+        await runSql(db, sql, {
+          limit: SQL_ROW_LIMIT,
+          timeoutMs: options.sql?.timeoutMs ?? SQL_TIMEOUT_MS,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof QueryTimeoutError) return c.json({ error: "query timed out" }, 504);
+      if (error instanceof InvalidSqlError) return c.json({ error: "invalid sql" }, 400);
+      return c.json({ error: "query failed", message: sqlMessage(error) }, 400);
+    }
+  });
+
+  app.get("/api/sql/views", async (c) => {
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await savedQueries.list());
+    } catch (error) {
+      return savedQueryFailure(c, error);
+    }
+  });
+
+  app.put("/api/sql/views/:id", async (c) => {
+    const rejected = guardWrite(c, true);
+    if (rejected) return rejected;
+    let input: unknown;
+    try {
+      input = await readBoundedJson(c.req.raw, MAX_SAVED_QUERY_BYTES);
+    } catch {
+      return c.json({ error: "invalid saved query" }, 400);
+    }
+    try {
+      return c.json(await savedQueries.put(c.req.param("id"), input));
+    } catch (error) {
+      return savedQueryFailure(c, error);
+    }
+  });
+
+  app.delete("/api/sql/views/:id", async (c) => {
+    const rejected = guardWrite(c, false);
+    if (rejected) return rejected;
+    try {
+      await savedQueries.remove(c.req.param("id"));
+      return c.body(null, 204);
+    } catch (error) {
+      return savedQueryFailure(c, error);
     }
   });
 

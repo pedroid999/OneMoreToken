@@ -22,6 +22,11 @@ export function perSession(figures: ProfileFigures): {
 
 export type Attribution = "none" | "exact" | "estimated" | "mixed";
 
+/** Raw figure cells in `FiguresCells` order, for CSV export (Phase 4 L30). */
+export function figuresCsv(figures: ProfileFigures): (string | number | null)[] {
+  return [figures.turns, figures.total, figures.computedCost, attributionOf(figures)];
+}
+
 /** Whether the turns were attributed exactly, by estimation (spec §6.2), or both. */
 export function attributionOf(figures: ProfileFigures): Attribution {
   if (figures.exactTurns === 0 && figures.estimatedTurns === 0) return "none";

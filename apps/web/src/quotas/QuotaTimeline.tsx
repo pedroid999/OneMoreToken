@@ -1,7 +1,9 @@
+import type { RefObject } from "react";
 import { lazy, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Estimated } from "../components/Estimated";
 import { LoadingState } from "../components/LoadingState";
+import type { ChartHandle } from "../explorer/Chart";
 import { formatPercent } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { usePreferences } from "../prefs/usePreferences";
@@ -33,10 +35,12 @@ export function QuotaTimeline({
   report,
   language,
   period,
+  chartRef,
 }: {
   report: QuotaWindowKindReport | undefined;
   language: Language;
   period: QuotasPeriod;
+  chartRef?: RefObject<ChartHandle | null>;
 }) {
   const { t } = useTranslation();
   const { resolvedTheme } = usePreferences();
@@ -76,6 +80,7 @@ export function QuotaTimeline({
       <div className="quota__chart">
         <Suspense fallback={<LoadingState />}>
           <Chart
+            chartRef={chartRef}
             spec={spec}
             datasets={datasets}
             label={t("burnRate.timeline.chartName")}

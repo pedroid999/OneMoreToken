@@ -6,17 +6,20 @@
   A local dashboard to explore how you use AI coding agents: tokens, cost, subscription quotas and the agent profiles behind them.
 </p>
 
-> **Status:** phase 1 in progress. Claude Code and gentle-shell/Pi metrics ingestion and the period summary are available. Quotas and profile attribution arrive in phase 3.
+> **Status:** phases 0 to 3 are released and phase 4 (Git insights, SQL console, markdown reports, exports, threshold alerts and the Codex adapter) is delivered on `develop`, waiting for its promotion to `main`.
 
 ## What it does
 
 One More Token reads the sessions your coding agents already store on your machine, normalizes them, and lets you explore them freely:
 
-- **One view for every agent:** Claude Code, gentle-shell/Pi and OpenCode first, more to come.
+- **One view for every agent:** Claude Code, gentle-shell/Pi, OpenCode and Codex first, more to come.
 - **Burn rate:** your 5-hour, weekly and monthly quota windows over time, with a projection of when you will hit the limit.
 - **Explorer:** pivot any metric (input, output, cache, cost) by any dimension (agent, model, profile, repo, hour…) into any chart.
 - **gentle-shell profiles:** compare what each routing profile really costs, by role and by kind of task.
 - **Git insights:** tokens per commit, per PR, and sessions that never shipped.
+- **SQL console:** query the local DuckDB warehouse and keep the queries you use.
+- **Reports and alerts:** a weekly report and a monthly «wrapped» in markdown, and a message when a quota window crosses a threshold you set.
+- **Exports:** any chart as PNG or SVG, any table as CSV.
 - **Light and dark Kanagawa themes**, keyboard-first, in English and Spanish.
 
 Everything runs locally. Nothing leaves your machine.
@@ -44,7 +47,7 @@ pnpm omt ingest --agent opencode --path /absolute/opencode-data-directory
 pnpm omt ingest --url http://127.0.0.1:7318 --agent claude-code
 ```
 
-The CLI is an HTTP client, not another DuckDB writer (spec §11.1). `--url` accepts only loopback HTTP addresses (`localhost`, `127.0.0.1`, `[::1]`), without credentials, query strings or redirects. By default the server recursively discovers `~/.claude/projects/`, `~/.gentle-shell/agent/sessions/`, gentle-shell subagents in `~/.gentle-shell/agent/gentle-agents/`, `~/.pi/agent/sessions/` and the OpenCode data directory `${XDG_DATA_HOME:-~/.local/share}/opencode/`; absent defaults are ignored. `--agent` limits discovery to one adapter. `--path` requires `--agent` and an absolute directory. Symlink files and directories (including linked-home ancestors) are not followed, avoiding loops and duplicate linked homes.
+The CLI is an HTTP client, not another DuckDB writer (spec §11.1). `--url` accepts only loopback HTTP addresses (`localhost`, `127.0.0.1`, `[::1]`), without credentials, query strings or redirects. By default the server recursively discovers `~/.claude/projects/`, `~/.gentle-shell/agent/sessions/`, gentle-shell subagents in `~/.gentle-shell/agent/gentle-agents/`, `~/.pi/agent/sessions/`, `~/.codex/sessions/` and the OpenCode data directory `${XDG_DATA_HOME:-~/.local/share}/opencode/`; absent defaults are ignored. `--agent` limits discovery to one adapter. `--path` requires `--agent` and an absolute directory. Symlink files and directories (including linked-home ancestors) are not followed, avoiding loops and duplicate linked homes.
 
 gentle-shell subagent transcripts (`gentle-agents/sessions/*.jsonl`, Pi v3 format) are ingested as child sessions of the gentle-shell session that launched them. The link comes from the task records in `gentle-agents/tasks/*.json`: only their metadata (task id, agent role, parent session id, `provider/model`, thinking level, linked transcript file and timestamps) is read; prompts, results, labels, working directories and threads are never stored. Each child gets one subagent run (role, model, effort, duration, summed tokens and costs). A transcript without a task record, or whose parent transcript is absent, is still ingested, without a parent or run (role unknown). `--since` selects a subagent transcript when it or one of its task records changed after the timestamp. `--path` always reads plain transcripts.
 
@@ -62,7 +65,7 @@ Exit status is 0 for a successful API request, even with counted file issues; 1 
 
 #### Ingestion API contract
 
-`POST /api/ingest` accepts an `application/json` object with optional `agent` (`claude-code`, `gentle-shell`, `pi`, `opencode`), `path` (absolute directory, requires `agent`), and `since` (ISO timestamp with timezone). Unknown fields, malformed JSON and bodies exceeding 16 KiB return 400 before discovery or database access. Host protection remains enabled; hostile browser Origins return 403 and non-JSON content returns 415. Loopback HTTP Origins, including Vite's `http://localhost:5173`, are accepted; no permissive CORS headers are emitted.
+`POST /api/ingest` accepts an `application/json` object with optional `agent` (`claude-code`, `gentle-shell`, `pi`, `opencode`, `codex`), `path` (absolute directory, requires `agent`), and `since` (ISO timestamp with timezone). Unknown fields, malformed JSON and bodies exceeding 16 KiB return 400 before discovery or database access. Host protection remains enabled; hostile browser Origins return 403 and non-JSON content returns 415. Loopback HTTP Origins, including Vite's `http://localhost:5173`, are accepted; no permissive CORS headers are emitted.
 
 The response is `IngestMetrics`, exported from `apps/cli/src/ingest/service.ts`: `{ files, persisted, skipped, failed, issues }`, all nonnegative integer counters for this request. `files` counts selected JSONL files attempted; `persisted`/`skipped` are checkpoint outcomes; `failed` counts file processing/directory discovery failures; `issues` counts newly parsed row issues plus those failures. Missing defaults and symlinks are ignored. Stored issues in unchanged files are not recounted. Filesystem/parser failures produce only safe counters, with no source paths or exception details in the response.
 
@@ -70,7 +73,7 @@ The response is `IngestMetrics`, exported from `apps/cli/src/ingest/service.ts`:
 
 ### Period summary
 
-The Summary view reads local aggregates without triggering ingestion (spec §7.1–§7.2, §8.5). Select the last 7 or 30 days; explicit `from` and `to` URL parameters preserve the period through browser history and language changes. Other URL parameters are preserved, but do not filter this phase-1 summary. Dates and daily trends use UTC. Theme and density preferences still apply.
+The Summary view reads local aggregates without triggering ingestion (spec §7.1–§7.2, §8.5). Select the last 7 or 30 days; explicit `from` and `to` URL parameters preserve the period through browser history and language changes. Other URL parameters are preserved, but do not filter the summary. Dates and daily trends use UTC. Theme and density preferences still apply.
 
 #### Summary API contract
 
@@ -107,7 +110,7 @@ The Summary view reads local aggregates without triggering ingestion (spec §7.1
 - `pricing` describes the currently loaded catalog: `basis` is `current-reference` or `historical` (the default for catalogs without policy metadata); `observedAt` is its UTC `YYYY-MM-DD` reference date or `null` for historical pricing. In current-reference mode the UI labels computed cost **Estimated API equivalent**: standard/global rates at that reference date applied to past usage, **not historical billed prices or subscription charges**. Unknown cache-write TTL assumes the short rate; no fast-mode, batch discount or geographic premium is inferred. Historical catalogs retain event-date pricing and the Computed cost label.
 - Computed sums and known coverage include only usage whose source checkpoint `pricing_hash` matches `hashContent(JSON.stringify(PricingFileSchema.parse(pricing)))` for the current catalog. `pricing.staleUsageTurns` counts selected usage rows with a missing or mismatched hash (including rows whose stored computed cost is already null); these count as unknown, never silently relabelled with new rates. Matching-hash missing/unresolved models are ordinary unknowns, not stale. Tokens and reported costs are unaffected. GET never rewrites stored costs: rerun `pnpm omt ingest` to reprice available source files. Stale sources no longer present remain unknown; old stored rates are never substituted.
 - All numeric JSON fields are nonnegative finite numbers. Integer aggregates (including DuckDB bigint/HUGEINT results) must fit `Number.MAX_SAFE_INTEGER`; USD retains floating-point precision from stored DOUBLE values, but is also rejected above that magnitude. Nonfinite/unsafe aggregates or database failures return HTTP 500 with exactly `{"error":"summary unavailable"}` rather than silently corrupting numbers or exposing exceptions.
-- `issues` counts **all currently stored** ingestion issues by severity, not just issues in the selected turn period. No source paths, messages, content, models or profile guesses are returned. Quota is explicitly unavailable until phase 3; no subscription limits or percentages are fabricated. Summary reads share the ingestion connection and `withDatabase` queue and never mutate data. Successful reads disable HTTP caching.
+- `issues` counts **all currently stored** ingestion issues by severity, not just issues in the selected turn period. No source paths, messages, content, models or profile guesses are returned. Quota is not part of the Summary, which has its own view; no subscription limits or percentages are fabricated here. Summary reads share the ingestion connection and `withDatabase` queue and never mutate data. Successful reads disable HTTP caching.
 
 ### Explorer API
 
@@ -142,7 +145,7 @@ The pivot backend for the Explorer (spec §7.2). It reads aggregates only, never
 ```
 
 - **Metrics** (1–4, no duplicates): `input`, `output`, `cacheRead`, `cacheWrite`, `total` (raw token integers; the UI formats millions), `computedCost`, `reportedCost`, `cacheHitRatio`, `turns`, `sessions` (distinct). Costs are sums of known values only, `null` when none is known, never an inferred zero; each cost metric adds `<metric>Known` and `<metric>Unknown` coverage columns counting usage rows, exactly as in the Summary (computed cost is known only when priced with the current catalog). `cacheHitRatio` = cacheRead / (input + cacheRead + cacheWrite), `null` when that sum is 0. `turns` counts all turns, including user turns.
-- **Dimensions** (0–2, no duplicates): `agent`, `model`, `provider`, `effort`, `repo`, `branch`, `tool`, `day` (`YYYY-MM-DD`), `hourOfDay` (0–23), `dayOfWeek` (ISO, 1 = Monday … 7 = Sunday), all in UTC. `subscription`, `profile` and `role` are accepted, grouped as `null` and listed in `unavailable` until phase 3. `repo` groups the stored column, which no adapter fills yet; it is never derived from the working directory. Rows are ordered by dimension values ascending, nulls last; `truncated` is true when more than `limit` (1–10000, default 1000) groups exist.
+- **Dimensions** (0–2, no duplicates): `agent`, `model`, `provider`, `effort`, `repo`, `branch`, `tool`, `day` (`YYYY-MM-DD`), `hourOfDay` (0–23), `dayOfWeek` (ISO, 1 = Monday … 7 = Sunday), all in UTC. `subscription`, `profile` and `role` group the attributed values of each turn and stay `null` for turns that were not attributed. `repo` groups the stored column, which no adapter fills yet; it is never derived from the working directory. Rows are ordered by dimension values ascending, nulls last; `truncated` is true when more than `limit` (1–10000, default 1000) groups exist.
 - **Tools.** Grouping by `tool` counts each turn once per distinct tool it called, so groups overlap and `overlapping` is `true`; turns without tools form the `null` group. A `tool` filter without tool grouping selects turns that did (`in`) or did not (`notIn`) call any listed tool, without duplicating them.
 - **Filters** (at most 10, combined with AND): `{ dimension, op: "in" | "notIn", values }` with 1–50 non-empty strings. Values are compared with the dimension's text form (`"23"` for `hourOfDay`) and always bound as parameters. `notIn` keeps `null` groups; unavailable dimensions behave as `null`.
 - **Range.** `from` and `to` are required and follow the Summary rules: ISO timestamps with timezone, millisecond precision at most, `from < to`, at most 366 UTC days, selecting turns by timestamp in `[from, to)`.
@@ -163,15 +166,15 @@ The Session view backend (spec §7.1): metrics only, no message content. Both en
 
 #### `GET /api/sessions?from&to&agent&limit`
 
-- Lists sessions with at least one turn in `[from, to)`. `from`/`to` follow the Summary rules exactly (both or neither; default the rolling seven days). `agent` is optional (`claude-code`, `gentle-shell`, `pi`, `opencode`); `limit` is an integer 1–500 (default 100). Repeated, unknown-agent or invalid values return 400 `{"error":"invalid sessions query"}` before any database read.
+- Lists sessions with at least one turn in `[from, to)`. `from`/`to` follow the Summary rules exactly (both or neither; default the rolling seven days). `agent` is optional (`claude-code`, `gentle-shell`, `pi`, `opencode`, `codex`); `limit` is an integer 1–500 (default 100). Repeated, unknown-agent or invalid values return 400 `{"error":"invalid sessions query"}` before any database read.
 - Each item: `id`, `agent`, `cwd` (last path segment only; the full path is never returned), `branch`, `startedAt`, `endedAt`, `parentId`, `turns`, `usageTurns`, `tokens` (four categories and `total`), `costs.reported`/`costs.computed` as known-only sums with `known`/`unknown` counts (computed cost is known only when priced with the current catalog, as in the Summary), `compactions` and `children` (stored sessions whose parent is this one). Counts, tokens and costs cover only the session's turns inside the period.
 - Ordered newest started first (then by id); `truncated` is true when more than `limit` sessions match. `pricing` gives the catalog `basis` and `observedAt`.
 
 #### `GET /api/sessions/:id`
 
 - `id` must be a stored record id (`<sha256>:session:<sha256>`, lowercase hex); anything else returns 400 `{"error":"invalid session id"}` before any database read, and an unknown id returns 404 `{"error":"session not found"}`.
-- Returns `session` (the list item shape, with stats over every turn of the session), `turns` in `idx` order (`idx`, `role`, `ts`, `model`, `provider`, `effort`, `isCompaction`, `tokens` or `null` without usage, `contextTokens`, per-turn `costs.reported`/`costs.computed` or `null` when unknown, and `tools` with `tool`, `status`, `durationMs`), `parent` (`{ id, agent }`, `agent` null when the parent was never ingested) and `children` (`id`, `agent`, `startedAt` and their stats).
-- `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked. Commit diffs arrive in phase 4.
+- Returns `session` (the list item shape, with stats over every turn of the session), `turns` in `idx` order (`idx`, `role`, `ts`, `model`, `provider`, `effort`, `isCompaction`, `tokens` or `null` without usage, `contextTokens`, per-turn `costs.reported`/`costs.computed` or `null` when unknown, and `tools` with `tool`, `status`, `durationMs`), `parent` (`{ id, agent }`, `agent` null when the parent was never ingested), `children` (`id`, `agent`, `startedAt` and their stats) and `commits` the session's turns are attributed to (`repo` name, short `sha`, `subject`, `authoredAt`, `additions`, `deletions`, and `tokens` of this session's turns), one per sha, oldest first.
+- `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked, and lists the associated commits with their +/− line counts (diffs themselves are not stored).
 - Unsafe aggregates or database failures on either endpoint return 500 `{"error":"sessions unavailable"}`.
 
 ### Subscriptions, quotas and calibrations
@@ -192,12 +195,13 @@ Quota is attributed by subscription, not by agent (spec §4, §5): several agent
 - `planId` must exist in `data/subscriptions.json`; `label`, `startedAt` and `endedAt` (inclusive ISO dates) are optional. Each `match` rule names a turn `provider` and optionally an `agent`. A turn belongs to the first subscription, in file order, with a matching rule inside its dates; turns without a match count as pay-as-you-go API usage.
 - Attribution is computed at query time, so editing the file never needs a re-ingest. A missing file means no subscriptions; an invalid one is reported and ignored.
 - Calibrations are the % you read in each provider console (Claude `/usage`, Codex `/status`, the OpenCode Go dashboard). Enter them in the Burn rate view; they are stored in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json` (mode 0600, written atomically, never through a symlink and never over a file that fails validation), since nothing else can rebuild them.
+- Codex readings are added automatically: every Codex `token_count` event carries the `rate_limits` Codex shows in `/status` (5 h and weekly %, with their reset time). They are stored at ingest in the database, origin `codex`, rewritten whenever their rollout changes and never written to `calibrations.json`. A reading counts for the subscription whose `match` rules cover provider `openai` and agent `codex` on that date (for example ChatGPT Plus with `{ "provider": "openai", "agent": "codex" }`); readings no subscription matches are ignored. Codex repeats them on every response, so only the latest reading of each window (before it resets) is used and listed. They sit next to your manual readings, marked with their origin, and are read-only.
 - Every window figure is an estimate (spec §5.3). Your calibrations set the limit: the median of the limits they imply (usage counted by One More Token divided by the observed %), measured in the same units we count. This also corrects plans with a published limit, such as OpenCode Go, whose agent-reported costs need not match what the provider bills; without readings the published limit is used, and without either the limit is unknown. The deviation shown is leave-one-out (each reading predicted from the others, or from the published limit when it is the only one), as a mean absolute deviation in percentage points. It needs two readings when the limit is estimated, and one when the plan publishes it.
 
 API (Host guard, `Cache-Control: no-store`; writes need a loopback Origin and JSON):
 
 - `GET /api/quotas?from&to` (Summary period rules) returns `config.status` (`ok` | `missing` | `invalid`), `calibrations.status` (`ok` | `invalid`) and, per subscription, windows with usage, limit and its source (`calibrated` | `plan` | `unknown`, in that order of preference), estimated %, reset, pace projection, over-limit usage, calibration deviation and the extracted API-equivalent value. Computed cost follows the Summary's current-pricing rule. Errors: 400 `invalid quotas period`, 500 `quotas unavailable`.
-- `GET /api/calibrations`, `POST /api/calibrations` (`subscriptionId`, `windowKind` of that plan, `observedPct` 0–100, `observedAt` not in the future, optional `note` ≤ 200 characters; returns 201) and `DELETE /api/calibrations/:id` (204). Errors: 400 `invalid calibration`, 404 `calibration not found`, 409 `unsafe calibration storage`.
+- `GET /api/calibrations`, `POST /api/calibrations` (`subscriptionId`, `windowKind` of that plan, `observedPct` 0–100, `observedAt` not in the future, optional `note` ≤ 200 characters; returns 201) and `DELETE /api/calibrations/:id` (204). The list and the quota readings carry `origin` (`manual` | `codex`); Codex readings cannot be deleted (404 `calibration not found`). Errors: 400 `invalid calibration`, 404 `calibration not found`, 409 `unsafe calibration storage`.
 
 ### gentle-shell profiles
 
@@ -205,13 +209,74 @@ Profiles (spec §6) are read from `~/.gentle-shell/config/gentle-ai/profiles.jso
 
 `GET /api/profiles?from&to` returns, per profile, cost and tokens total and per session, role and effort breakdowns, subscriptions drained, snapshot versions and exact vs estimated shares, plus the unattributed gentle-shell turns. Errors: 400 `invalid profiles period`, 500 `profiles unavailable`. The Explorer can group by `subscription`, `profile`, `attribution` and `role`.
 
+### Git commits and orphan tokens
+
+After each ingest, every distinct session working directory (a child session without one inherits its parent's) is resolved to its git repository with `git rev-parse --show-toplevel`; directories that are not repositories or no longer exist are skipped. Git runs read-only: no shell, no optional locks, no fetch and no network, and the repositories are never written. Per repository, `git log --branches --numstat` starts one day before its earliest session and keeps only **your** commits (author email equal to that repository's `git config user.email`): sha, author date, subject line, and added/deleted lines (binary files count 0). No author names or emails are stored. Merge commits are not stored; a local merge titled `Merge pull request #N …` assigns PR `N` to the stored commits it brings in (`M^1..M^2`), the earliest merge winning when a later one repeats them. Commits of repositories no longer seen are kept.
+
+Attribution is per turn: each turn goes to your next commit in the same repository, when that commit lands no later than 30 minutes after the session ends (the later of its recorded end and its last turn; a subagent session uses its own end). A session with three commits splits its tokens among them; turns after the last one are **orphan**. It is recomputed in full after every ingest.
+
+`GET /api/git?from&to` (Summary period rules) returns `commits` authored in the period (repository name, short sha, subject, `authoredAt`, additions, deletions, tokens, computed and reported cost, sessions, PR number or null), `pullRequests` aggregated over those commits, and `orphanSessions` with orphan turns in the period (session, agent, repository or null, `startedAt`, orphan tokens and costs, `hadCommit`). Tokens are input + output + cache read + cache write; computed cost follows the Summary's current-pricing rule. Errors: 400 `invalid git period`, 500 `git unavailable`.
+
+The **Git** view (`/git`) shows, for the selected period, the attributed vs orphan tokens, a chart of tokens per commit over time, a commits table and a PR table with tokens per net line (tokens / (additions − deletions), not applicable when the net is zero or negative), and the orphan sessions with a link to each one in the Session view.
+
+### SQL console
+
+The **SQL** view (`/sql`) runs queries against your local DuckDB and keeps the queries you want to reuse. It is strictly read-only: your text is wrapped as `SELECT * FROM (<your query>)` before it reaches DuckDB, so only one query expression parses and statements such as `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `ATTACH`, `COPY`, `PRAGMA`, `SET` or `CALL` fail before executing anything. A second statement fails the same way, so nothing you type can change the database. DuckDB is also opened with external access disabled, so query expressions like `read_text('/path')` or `read_csv('/path')` cannot reach a file outside the database: the console only ever reads what ingestion already stored. Queries are capped at 1000 returned rows (`truncated` says whether more exist) and interrupted after 5 seconds.
+
+`POST /api/sql/query` with `{ "sql": "SELECT …" }` returns `columns` (name and DuckDB type), `rows` (DuckDB's JSON values: 64-bit integers arrive as text, so nothing is rounded), `rowCount`, `truncated` and `elapsedMs`. Errors: 400 `invalid sql` (empty or oversized text), 400 `query failed` with a one-line `message` from DuckDB (parse or execution error), 504 `query timed out`.
+
+Saved queries live in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/<id>.json`, private files (`0600`) that are replaced atomically, never written through a symlink and never fatal when corrupt: `GET /api/sql/views` returns them plus the files it could not read, `PUT /api/sql/views/:id` stores `{ "name", "sql" }`, and `DELETE /api/sql/views/:id` removes one. The view saves the query you are editing under a name, loads one back into the editor, and runs it with the Run button or Ctrl/Cmd+Enter.
+
+### Weekly and monthly reports
+
+`omt serve` writes two markdown reports inside the server process (spec §9): the **weekly report** of the last ISO week that ended and the monthly **wrapped** of the last calendar month that ended. Both use UTC calendar periods, so the file name never changes while a period is still open. The weekly report lists the period summary against the previous period (sessions, turns, tokens, computed and reported cost with their unpriced counts, cache hit ratio, ingest issues), tokens per agent, tokens per day, the quota windows of every subscription with their limit, calibration deviation and pace projection, and the Git figures (attributed vs orphan tokens, commits, PRs). The monthly wrapped adds highlights: busiest day, top agent, top model and the share of tokens read from the cache.
+
+Reports are rendered deterministically from the database: running a pass again never rewrites a file whose content did not change, and a period that receives late data is rewritten on the next pass. The language is chosen with `--report-lang es|en` (or `OMT_REPORT_LANGUAGE`), defaulting to `es`; the CLI and its logs stay in English. A pass runs at startup and then every hour (`--report-interval-ms`, `0` keeps only the startup pass). A failed pass is logged and never stops the server. Reports hold aggregates only: no prompts, messages, reasoning or tool output, and no author emails.
+
+Files are `weekly-YYYY-Www.md` and `monthly-YYYY-MM.md` in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/reports/`, inside a private `0700` directory, `0600` files, replaced atomically and never written through a symlink.
+
+### Exports
+
+Every chart offers **PNG** and **SVG**, and every table offers **CSV** (spec §9: *Exportación de cualquier gráfico a PNG/SVG y de cualquier tabla a CSV*). The controls sit in the header of the panel or section they belong to: the burn-rate timeline, the Explorer chart, the session context curve, the profiles comparison and the Git tokens-per-commit chart export as images; the Summary per-day tokens, the burn-rate timeline, over-limit and readings tables, the Explorer results, the session list and detail tables, the profiles tables, the Git commits, pull requests and orphan sessions, and the SQL result set export as CSV. A control stays disabled, or is left out entirely, while its table or chart has nothing to export.
+
+The PNG is rasterized in the browser by Vega at **2× the rendered size**, so it stays sharp on a high-density screen; the SVG is the vector form of the same picture, ready to edit or scale.
+
+CSV is machine-ready rather than pretty-printed: the **header row uses the same labels as the visible table in your UI language**, and the cells hold raw values — plain numbers with a dot decimal separator and no thousands grouping, instants as ISO-8601 UTC strings, `true`/`false`, and an empty cell when a value is unknown or not applicable. Token and cost figures reach a spreadsheet as the exact numbers behind the `M` and `$` formatting on screen. Files are named after the route plus the selected period (`burn-rate-timeline-claude-pro-2026-01-01-2026-01-08.csv`, `git-commits-2026-10.csv`), without a timestamp, so exporting twice does not pile up copies.
+
+Exports are produced entirely in your browser from data the dashboard already holds: nothing is uploaded, there is no telemetry, and no new network request is made (spec §10).
+
+### Threshold alerts
+
+An alert watches one quota window of one subscription and tells you when it crosses a percentage of its limit (spec §9). Alerts live in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/alerts.json`, next to your subscriptions:
+
+```json
+{
+  "version": 1,
+  "alerts": [
+    {
+      "id": "chatgpt-plus-five-hours-80",
+      "subscriptionId": "chatgpt-plus",
+      "windowKind": "five_hours",
+      "thresholdPct": 80,
+      "channel": "telegram"
+    }
+  ]
+}
+```
+
+`windowKind` is `five_hours`, `weekly` or `monthly`, and `thresholdPct` goes from 1 to 100. Only the window instance that is active at the moment of the pass is considered, so an old window never arrives as a surprise on the first run, and an instance whose limit is still unknown stays quiet. Each instance produces at most one message: the same window never repeats, and the next instance of that window alerts again when it crosses the threshold. A message that could not be delivered is retried on the next pass while its window is still open.
+
+The first channel is **Telegram**, the only one there is today; the channel is looked up by the `channel` id, so an id nobody registered is a configuration error instead of a silent no-op. Credentials come from `--telegram-bot-token` / `--telegram-chat-id` or `OMT_TELEGRAM_BOT_TOKEN` / `OMT_TELEGRAM_CHAT_ID`, a flag winning over the environment; prefer the environment variables, because a token typed on the command line also reaches your shell history and the process list. The bot token is never logged, never stored in the database and never written to the alert state; without both values no channel exists, the alerts are never delivered and one warning at startup tells you what is missing. Nothing is sent anywhere unless you configure a channel and an alert (spec §10).
+
+A pass runs at startup and then every hour (`--alert-interval-ms`, `0` keeps only the startup pass); a failed pass is logged and never stops the server. The message uses the language of `--report-lang`, states the subscription, the window, the threshold, the estimated usage, the cost against the limit and when the window ends, and it holds aggregates only: no prompts, messages, reasoning or tool output. Which instance was already delivered is remembered in the `alert_notifications` table of the local database.
+
 ### Where your data lives
 
 - The database is a single DuckDB file at `$OMT_DB` if set, otherwise `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`. Override it per run with `pnpm omt serve --db <path>`.
 - The server binds to `127.0.0.1` by default, so it is only reachable from your machine. There is no telemetry.
 - Agent session files are only read, never modified.
-- Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`.
-- Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`.
+- Views you save from the Explorer are JSON files in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/views/`; the queries you save from the SQL console are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/sql-views/`; the markdown reports are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/reports/`.
+- Quota calibrations are in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json`; your subscriptions in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`; your threshold alerts in `${XDG_CONFIG_HOME:-~/.config}/one-more-token/alerts.json`.
 
 ### Keep your Claude Code history
 

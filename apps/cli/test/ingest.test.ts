@@ -108,6 +108,32 @@ describe("POST /api/ingest", () => {
     expect(await stored()).toEqual(snapshot);
   });
 
+  it("keeps ingest metrics unchanged and stores no git links when no session has a repo", async () => {
+    await writeFile(join(root, "session.jsonl"), content);
+    const res = await post();
+    expect(await res.json()).toEqual(metrics(1));
+    expect((await stored()).map((rows) => rows.length)).toEqual([1, 1, 1, 1, 0, 0, 1]);
+    for (const table of ["session_repos", "commits", "commit_pull_requests", "turn_commits"])
+      expect(await db.all(`SELECT * FROM ${table}`)).toEqual([]);
+  });
+
+  it("still answers and recomputes derived attribution when the git sync fails", async () => {
+    await writeFile(join(root, "session.jsonl"), content);
+    await db.run("INSERT INTO turn_commits VALUES ('stale-turn', '/synthetic/repo', 'abc')");
+    const failing = createApp(db, {
+      ingest: {
+        roots: [{ agent: "pi", path: root }],
+        now: () => now,
+        syncGit: () => Promise.reject(new Error("git sync failed")),
+      },
+    });
+    const res = await post(failing);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(metrics(1));
+    // The derived rewrites after the git sync still ran: the stale row is gone.
+    expect(await db.all("SELECT * FROM turn_commits")).toEqual([]);
+  });
+
   it("reparses append/rewrite snapshots, counts a corrupt middle row and continues", async () => {
     const path = join(root, "session.jsonl");
     await writeFile(path, content);
@@ -403,6 +429,7 @@ describe("POST /api/ingest for OpenCode", () => {
       "gentle-shell",
       "pi",
       "opencode",
+      "codex",
     ]);
   });
 });
@@ -658,6 +685,9 @@ describe("POST /api/ingest for gentle-shell subagents", () => {
     );
     expect(stored).not.toContain("PRIVATE_SENTINEL");
     expect(stored).not.toContain("origin");
+    // Fixture cwds are not repositories: no git links, attribution and metrics as before (L14).
+    for (const table of ["session_repos", "commits", "commit_pull_requests", "turn_commits"])
+      expect(await db.all(`SELECT * FROM ${table}`)).toEqual([]);
   });
 
   it("does not follow a symlinked subagent directory", async () => {
@@ -671,5 +701,162 @@ describe("POST /api/ingest for gentle-shell subagents", () => {
     await rm(children, { recursive: true });
     await symlink(join(root, "elsewhere"), children);
     expect(await (await post(gentle())).json()).toEqual(metrics(1));
+  });
+});
+
+describe("POST /api/ingest for Codex", () => {
+  const fixtures = fileURLToPath(
+    new URL("../../../packages/adapters/codex/fixtures/", import.meta.url),
+  );
+  const codex = () => app({ ingest: { roots: [{ agent: "codex", path: root }], now: () => now } });
+  const parentName = "rollout-2026-10-20T09-00-00-thread-main.jsonl";
+  const childName = "rollout-2026-10-20T09-00-08-thread-child.jsonl";
+  async function install(withParent = true) {
+    const day = join(root, "2026", "10", "20");
+    await mkdir(day, { recursive: true });
+    if (withParent)
+      await writeFile(join(day, parentName), await readFile(join(fixtures, "rollout.jsonl")));
+    await writeFile(join(day, childName), await readFile(join(fixtures, "subagent.jsonl")));
+    return day;
+  }
+  const sessions = () =>
+    db.all(
+      `SELECT s.format_version, s.parent_session_id IS NULL AS root, c.adapter_version
+       FROM sessions s JOIN sources c ON c.id = s.source_id ORDER BY s.started_at`,
+    );
+
+  it("ingests rollouts read-only, links subagent threads and skips unchanged files", async () => {
+    await install();
+    const before = await readdir(root, { recursive: true });
+    const first = await post(codex());
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual(metrics(2, 2, 0, 0, 2));
+    expect(await readdir(root, { recursive: true })).toEqual(before);
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/2" },
+      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/2" },
+    ]);
+    expect(await db.all("SELECT role, provider, effort FROM subagent_runs")).toEqual([
+      { role: "explorer", provider: "openai", effort: "high" },
+    ]);
+    const text = JSON.stringify(await stored(), (_key, value) =>
+      typeof value === "bigint" ? String(value) : value,
+    );
+    for (const secret of ["PRIVATE", "SECRET", "Synthetic"]) expect(text).not.toContain(secret);
+    const snapshot = await stored();
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 0, 2));
+    expect(await stored()).toEqual(snapshot);
+  });
+
+  it("links a child when its parent rollout appears later", async () => {
+    const day = await install(false);
+    await post(codex());
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: true, adapter_version: "codex/2" },
+    ]);
+    await writeFile(join(day, parentName), await readFile(join(fixtures, "rollout.jsonl")));
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 2, 0, 0, 2));
+    expect((await sessions()).map((row) => row.root)).toEqual([true, false]);
+  });
+
+  const readings = () =>
+    db.all(
+      `SELECT r.origin, r.window_kind, r.observed_pct, epoch_ms(r.resets_at) AS resets_ms,
+        r.source_id = c.id AS parent_source
+       FROM provider_quota_readings r
+       LEFT JOIN sources c ON c.path LIKE '%' || $1
+       ORDER BY r.window_kind`,
+      [parentName],
+    );
+
+  it("stores Codex rate limits per source, replaced on re-ingest and kept when skipped", async () => {
+    const day = await install();
+    await post(codex());
+    const first = [
+      {
+        origin: "codex",
+        window_kind: "five_hours",
+        observed_pct: 12,
+        resets_ms: 1792504800000n,
+        parent_source: true,
+      },
+      {
+        origin: "codex",
+        window_kind: "weekly",
+        observed_pct: 4,
+        resets_ms: 1793000000000n,
+        parent_source: true,
+      },
+    ];
+    expect(await readings()).toEqual(first);
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 0, 2));
+    expect(await readings()).toEqual(first);
+    const parent = join(day, parentName);
+    await writeFile(
+      parent,
+      (await readFile(parent, "utf8")).replace('"used_percent":12.0', '"used_percent":30.0'),
+    );
+    expect(await (await post(codex())).json()).toEqual(metrics(2, 1, 1, 0, 2));
+    expect(await readings()).toEqual([{ ...first[0], observed_pct: 30 }, first[1]]);
+  });
+
+  it("links a child to a parent in another day directory when --path points at one day", async () => {
+    await mkdir(join(root, "2026", "10", "19"), { recursive: true });
+    await writeFile(
+      join(root, "2026", "10", "19", parentName),
+      await readFile(join(fixtures, "rollout.jsonl")),
+    );
+    const day = await install(false);
+    const response = await post(app({ ingest: { roots: [], now: () => now } }), {
+      agent: "codex",
+      path: day,
+    });
+    expect(await response.json()).toEqual(metrics(1, 1, 0, 0, 0));
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/2" },
+    ]);
+  });
+
+  it("links a child to a parent in another day directory when --path ends with a slash", async () => {
+    await mkdir(join(root, "2026", "10", "19"), { recursive: true });
+    await writeFile(
+      join(root, "2026", "10", "19", parentName),
+      await readFile(join(fixtures, "rollout.jsonl")),
+    );
+    const day = await install(false);
+    await post(app({ ingest: { roots: [], now: () => now } }), {
+      agent: "codex",
+      path: `${day}/`,
+    });
+    expect(await sessions()).toEqual([
+      { format_version: "codex-rollout/1", root: false, adapter_version: "codex/2" },
+    ]);
+  });
+
+  it("re-links an older child with --since when its parent rollout is newer", async () => {
+    const day = await install(false);
+    await post(codex());
+    const old = new Date("2026-10-01T00:00:00Z");
+    await utimes(join(day, childName), old, old);
+    await writeFile(join(day, parentName), await readFile(join(fixtures, "rollout.jsonl")));
+    const response = await post(codex(), { since: "2026-10-15T00:00:00Z" });
+    expect(await response.json()).toEqual(metrics(2, 2, 0, 0, 2));
+    expect((await sessions()).map((row) => row.root)).toEqual([true, false]);
+    // Without a newer parent, an older child stays outside --since.
+    expect(await (await post(codex(), { since: "2999-01-01T00:00:00Z" })).json()).toEqual(
+      metrics(0, 0, 0),
+    );
+  });
+
+  it("discovers Codex under ~/.codex/sessions and accepts --agent codex", async () => {
+    expect(
+      defaultIngestRoots("/synthetic/home", {}).find((entry) => entry.agent === "codex")?.path,
+    ).toBe("/synthetic/home/.codex/sessions");
+    await install();
+    const response = await post(app({ ingest: { roots: [], now: () => now } }), {
+      agent: "codex",
+      path: root,
+    });
+    expect(await response.json()).toEqual(metrics(2, 2, 0, 0, 2));
   });
 });

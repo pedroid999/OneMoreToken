@@ -1,8 +1,12 @@
-import { randomUUID } from "node:crypto";
-import { constants } from "node:fs";
-import { chmod, lstat, mkdir, open, readdir, rename, unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir } from "node:fs/promises";
 import { loadPresetViews, SAVED_VIEW_ID, type SavedView, SavedViewSchema } from "@omt/core";
+import {
+  readUserJson,
+  removeUserFile,
+  UnsafeStorageError,
+  userDirectory,
+  writeUserJson,
+} from "./files";
 
 /** Per-file limit for user views (L16), applied to the request body and the stored file. */
 export const MAX_VIEW_BYTES = 256 * 1024;
@@ -34,8 +38,6 @@ export interface ViewStoreOptions {
   presetsDirectory?: string;
 }
 
-const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === "ENOENT";
-
 export interface ViewStore {
   list(): Promise<ViewList>;
   put(id: string, input: unknown): Promise<ViewEntry>;
@@ -53,38 +55,11 @@ export function createViewStore(options: ViewStoreOptions): ViewStore {
     return result;
   };
 
-  /** False when absent and not created; a symlink or non-directory is unsafe. */
-  async function userDirectory(create: boolean): Promise<boolean> {
-    try {
-      const stats = await lstat(directory);
-      if (stats.isSymbolicLink() || !stats.isDirectory()) throw new ViewError(409);
-    } catch (error) {
-      if (!missing(error)) throw error;
-      if (!create) return false;
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      return userDirectory(create);
-    }
-    if (create) await chmod(directory, 0o700);
-    return true;
-  }
-
   async function readUserView(id: string): Promise<SavedView | null> {
-    try {
-      const handle = await open(
-        join(directory, `${id}.json`),
-        constants.O_RDONLY | constants.O_NOFOLLOW,
-      );
-      try {
-        const stats = await handle.stat();
-        if (!stats.isFile() || stats.size > MAX_VIEW_BYTES) return null;
-        const view = SavedViewSchema.parse(JSON.parse(await handle.readFile("utf8")));
-        return view.id === id ? view : null;
-      } finally {
-        await handle.close();
-      }
-    } catch {
-      return null;
-    }
+    const stored = await readUserJson(directory, id, MAX_VIEW_BYTES);
+    if (stored === null) return null;
+    const parsed = SavedViewSchema.safeParse(stored);
+    return parsed.success && parsed.data.id === id ? parsed.data : null;
   }
 
   function checkId(id: string, presetIds: Set<string>): void {
@@ -92,12 +67,22 @@ export function createViewStore(options: ViewStoreOptions): ViewStore {
     if (presetIds.has(id)) throw new ViewError(403);
   }
 
+  /** Storage that is not a plain directory or file is refused, never followed. */
+  async function storage<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof UnsafeStorageError) throw new ViewError(409);
+      throw error;
+    }
+  }
+
   return {
     async list() {
       const views: ViewEntry[] = presets().map((view) => ({ origin: "preset", ...view }));
       const presetIds = new Set(views.map((view) => view.id));
       const invalid: ViewList["invalid"] = [];
-      if (await userDirectory(false)) {
+      if (await storage(() => userDirectory(directory, false))) {
         const ids = (await readdir(directory))
           .filter((file) => /^[a-z0-9-]{1,64}\.json$/.test(file))
           .map((file) => file.slice(0, -".json".length))
@@ -117,52 +102,23 @@ export function createViewStore(options: ViewStoreOptions): ViewStore {
       if (!parsed.success || parsed.data.id !== id) throw new ViewError(400);
       const text = `${JSON.stringify(parsed.data, null, 2)}\n`;
       if (Buffer.byteLength(text) > MAX_VIEW_BYTES) throw new ViewError(400);
-      return serialize(async () => {
-        await userDirectory(true);
-        const target = join(directory, `${id}.json`);
-        try {
-          const stats = await lstat(target);
-          if (stats.isSymbolicLink() || !stats.isFile()) throw new ViewError(409);
-        } catch (error) {
-          if (!missing(error)) throw error;
-        }
-        // Atomic replace: a private temp file in the same directory, then rename over the target.
-        const temp = join(directory, `.${id}.${randomUUID()}.tmp`);
-        const handle = await open(
-          temp,
-          constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-          0o600,
-        );
-        try {
-          try {
-            await handle.writeFile(text);
-            await handle.sync();
-          } finally {
-            await handle.close();
-          }
-          await rename(temp, target);
-        } catch (error) {
-          await unlink(temp).catch(() => {});
-          throw error;
-        }
-        return { origin: "user" as const, ...parsed.data };
-      });
+      return serialize(() =>
+        storage(async () => {
+          await userDirectory(directory, true);
+          await writeUserJson(directory, id, text);
+          return { origin: "user" as const, ...parsed.data };
+        }),
+      );
     },
 
     async remove(id) {
       checkId(id, new Set(presets().map((view) => view.id)));
-      return serialize(async () => {
-        if (!(await userDirectory(false))) throw new ViewError(404);
-        const target = join(directory, `${id}.json`);
-        try {
-          const stats = await lstat(target);
-          if (stats.isSymbolicLink() || !stats.isFile()) throw new ViewError(409);
-        } catch (error) {
-          if (missing(error)) throw new ViewError(404);
-          throw error;
-        }
-        await unlink(target);
-      });
+      return serialize(() =>
+        storage(async () => {
+          if (!(await userDirectory(directory, false))) throw new ViewError(404);
+          if (!(await removeUserFile(directory, id))) throw new ViewError(404);
+        }),
+      );
     },
   };
 }

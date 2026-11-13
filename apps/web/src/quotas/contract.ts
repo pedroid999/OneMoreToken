@@ -4,6 +4,9 @@
 
 export type WindowKind = "five_hours" | "weekly" | "monthly";
 export type LimitSource = "plan" | "calibrated" | "unknown";
+/** Manual readings come from the form; Codex ones are derived from its rate limits, read-only.
+ * The API always sends `origin`; the web treats a missing one as manual. */
+export type CalibrationOrigin = "manual" | "codex";
 
 export interface QuotaWindow {
   startsAt: string;
@@ -20,6 +23,7 @@ export interface QuotaWindow {
 
 export interface CalibrationReading {
   id: string;
+  origin?: CalibrationOrigin;
   observedAt: string;
   observedPct: number;
   usedUsd: number;
@@ -72,6 +76,7 @@ export interface CalibrationEntry {
   observedAt: string;
   observedPct: number;
   note?: string;
+  origin?: CalibrationOrigin;
 }
 
 export interface CalibrationList {
@@ -79,7 +84,7 @@ export interface CalibrationList {
 }
 
 /** Body of POST /api/calibrations: the entry without its server-assigned id. */
-export type CalibrationInput = Omit<CalibrationEntry, "id">;
+export type CalibrationInput = Omit<CalibrationEntry, "id" | "origin">;
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;

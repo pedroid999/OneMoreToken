@@ -4,6 +4,8 @@ import type { Summary } from "../../../cli/src/summary/contract";
 import { EmptyState } from "../components/EmptyState";
 import { Panel } from "../components/Panel";
 import { SegmentedControl } from "../components/SegmentedControl";
+import { rangeSlug } from "../export/download";
+import { TableExport } from "../export/TableExport";
 import { formatNumber, formatTokensM, formatUsd } from "../i18n/format";
 import { QuotaStatus } from "../quotas/QuotaStatus";
 import { useLocation } from "../router";
@@ -185,7 +187,17 @@ export function SummaryView() {
             <p className="summary__muted">{t("summary.costNote")}</p>
           </Panel>
           {data.turns > 0 ? (
-            <Panel title={t("summary.trend")}>
+            <Panel
+              title={t("summary.trend")}
+              actions={
+                <TableExport
+                  name={t("summary.trend")}
+                  filename={`summary-tokens-per-day-${rangeSlug(data.period.from, data.period.to)}`}
+                  columns={[t("summary.dayUtc"), t("summary.totalTokens")]}
+                  rows={data.days.map((day) => [day.date, day.tokens])}
+                />
+              }
+            >
               <table className="summary__trend" aria-label={t("summary.trend")}>
                 <thead>
                   <tr>

@@ -9,7 +9,7 @@ import { createI18n } from "../src/i18n/i18n";
 import type { Quotas } from "../src/quotas/contract";
 import { quotaTimeFormat } from "../src/quotas/state";
 import { SummaryView } from "../src/views/SummaryView";
-import { memoryStorage } from "./helpers";
+import { type DownloadSeam, installDownloadSeam, memoryStorage } from "./helpers";
 
 const from = "2026-01-01T00:00:00.000Z";
 const to = "2026-01-08T00:00:00.000Z";
@@ -44,6 +44,7 @@ const success = (): Summary => ({
 const fetcher = vi.fn<typeof fetch>();
 let quotasBody: () => Response;
 let quotaRequests: string[] = [];
+let seam: DownloadSeam;
 const router: typeof fetch = async (input, init) => {
   const url = String(input);
   if (url.startsWith("/api/quotas?")) {
@@ -112,9 +113,11 @@ beforeEach(() => {
   fetcher.mockReset();
   quotasBody = () => respond(quotas());
   quotaRequests = [];
+  seam = installDownloadSeam();
 });
 afterEach(() => {
   cleanup();
+  seam.restore();
   vi.unstubAllGlobals();
 });
 async function view() {
@@ -341,5 +344,23 @@ describe('Summary quota status (S9: "estado de cuotas")', () => {
     );
     expect(document.body.textContent).not.toContain("PRIVATE");
     expect(await screen.findByText("2 sessions")).toBeTruthy();
+  });
+});
+
+describe("Summary exports (S7, Phase 4 L30)", () => {
+  it("downloads the daily tokens table as CSV with raw counts", async () => {
+    fetcher.mockImplementation(async () => respond(success()));
+    await view();
+    await screen.findByText("2 sessions");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: en.export.csvAria.replace("{{name}}", en.summary.trend),
+      }),
+    );
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    expect(seam.downloads[0]?.name).toBe("summary-tokens-per-day-2026-01-01-2026-01-08.csv");
+    expect(await seam.text(seam.downloads[0])).toBe(
+      `${[en.summary.dayUtc, en.summary.totalTokens].join(",")}\r\n2026-01-01,1500000\r\n`,
+    );
   });
 });

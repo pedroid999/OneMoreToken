@@ -149,6 +149,16 @@ export const CalibrationSchema = z.object({
   note: nullable(z.string()),
 });
 
+export const ProviderQuotaReadingSchema = z.object({
+  id,
+  source_id: id,
+  origin: z.literal("codex"),
+  window_kind: z.enum(["five_hours", "weekly"]),
+  observed_at: timestamp,
+  observed_pct: z.number().min(0).max(100),
+  resets_at: timestamp,
+});
+
 export const CommitSchema = z.object({
   repo: z.string().min(1),
   sha: z.string().regex(/^[0-9a-f]{7,64}$/),
@@ -157,6 +167,32 @@ export const CommitSchema = z.object({
   message: nullable(z.string()),
   additions: nullable(z.number().int().nonnegative()),
   deletions: nullable(z.number().int().nonnegative()),
+});
+
+export const SessionRepoSchema = z.object({
+  session_id: id,
+  repo: z.string().min(1),
+});
+
+export const CommitPullRequestSchema = z.object({
+  repo: z.string().min(1),
+  sha: CommitSchema.shape.sha,
+  pr_number: z.number().int().positive(),
+});
+
+export const TurnCommitSchema = z.object({
+  turn_id: id,
+  repo: z.string().min(1),
+  sha: CommitSchema.shape.sha,
+});
+
+export const AlertNotificationSchema = z.object({
+  alert_id: id,
+  subscription_id: id,
+  kind: WindowKindSchema,
+  window_start: timestamp,
+  threshold_pct: z.number().min(1).max(100),
+  sent_at: timestamp,
 });
 
 export const IngestIssueSchema = z.object({
@@ -187,6 +223,11 @@ export const TABLE_SCHEMAS = {
   ingest_issues: IngestIssueSchema,
   subscription_rules: SubscriptionRuleSchema,
   turn_profile_bindings: TurnProfileBindingSchema,
+  provider_quota_readings: ProviderQuotaReadingSchema,
+  session_repos: SessionRepoSchema,
+  commit_pull_requests: CommitPullRequestSchema,
+  turn_commits: TurnCommitSchema,
+  alert_notifications: AlertNotificationSchema,
 } as const;
 
 export type TableName = keyof typeof TABLE_SCHEMAS;

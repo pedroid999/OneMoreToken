@@ -1,9 +1,26 @@
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { formatNumber, formatPercent, formatTokensM, formatUsd } from "../i18n/format";
 import type { Language } from "../i18n/i18n";
 import { type ExplorerResult, metricKind } from "./state";
 
 const LOCALES: Record<Language, string> = { es: "es-ES", en: "en-US" };
+
+export function columnLabel(
+  t: TFunction,
+  name: string,
+  type: ExplorerResult["columns"][number]["type"],
+): string {
+  if (type === "dimension") return t(`explorer.dimension.${name}`);
+  if (type === "metric") return t(`explorer.metric.${name}`);
+  const unknown = name.endsWith("Unknown");
+  const metric = t(
+    `explorer.metric.${name.slice(0, unknown ? -"Unknown".length : -"Known".length)}`,
+  );
+  return unknown
+    ? t("explorer.coverageUnknown", { metric })
+    : t("explorer.coverageKnown", { metric });
+}
 
 /** Data table: the text alternative of every chart (spec §8.4) and the exact numbers (S9). */
 export function ResultsTable({ data, language }: { data: ExplorerResult; language: Language }) {
@@ -12,17 +29,8 @@ export function ResultsTable({ data, language }: { data: ExplorerResult; languag
   const dayFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
   const weekday = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" });
 
-  const header = (name: string, type: ExplorerResult["columns"][number]["type"]) => {
-    if (type === "dimension") return t(`explorer.dimension.${name}`);
-    if (type === "metric") return t(`explorer.metric.${name}`);
-    const unknown = name.endsWith("Unknown");
-    const metric = t(
-      `explorer.metric.${name.slice(0, unknown ? -"Unknown".length : -"Known".length)}`,
-    );
-    return unknown
-      ? t("explorer.coverageUnknown", { metric })
-      : t("explorer.coverageKnown", { metric });
-  };
+  const header = (name: string, type: ExplorerResult["columns"][number]["type"]) =>
+    columnLabel(t, name, type);
 
   const cell = (name: string, type: string, value: string | number | null | undefined) => {
     if (type === "dimension") {

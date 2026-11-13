@@ -5,7 +5,7 @@ import type { SessionTurn } from "../../../cli/src/sessions/contract";
 const DAY = 86_400_000;
 
 /** Agents accepted by GET /api/sessions; mirrors the ingest agents. */
-export const SESSION_AGENTS = ["claude-code", "gentle-shell", "pi", "opencode"] as const;
+export const SESSION_AGENTS = ["claude-code", "codex", "gentle-shell", "pi", "opencode"] as const;
 export type SessionAgent = (typeof SESSION_AGENTS)[number];
 /** Stored record ids: `<sha256>:session:<sha256>`, as validated by the API. */
 const SESSION_ID = /^[0-9a-f]{64}:session:[0-9a-f]{64}$/;

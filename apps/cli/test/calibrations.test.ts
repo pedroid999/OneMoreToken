@@ -93,7 +93,7 @@ describe("/api/calibrations", () => {
       note: "console",
     });
 
-    expect(await list()).toEqual({ calibrations: [created] });
+    expect(await list()).toEqual({ calibrations: [{ ...created, origin: "manual" }] });
     expect(CalibrationsFileSchema.parse(JSON.parse(bytes()))).toEqual({
       version: 1,
       calibrations: [created],
@@ -146,6 +146,66 @@ describe("/api/calibrations", () => {
     const missing = await app().request("/api/calibrations/nope", { method: "DELETE" });
     expect(missing.status).toBe(404);
     expect(await missing.json()).toEqual({ error: "calibration not found" });
+  });
+
+  it("lists the latest Codex reading per window as read-only, next to the manual ones", async () => {
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        version: 1,
+        subscriptions: [
+          ...config.subscriptions,
+          {
+            id: "plus",
+            planId: "chatgpt-plus",
+            startedAt: "2026-10-01",
+            match: [{ provider: "openai", agent: "codex" }],
+          },
+        ],
+      }),
+    );
+    await db.run(
+      `INSERT INTO provider_quota_readings VALUES
+        ('r1', 'src', 'codex', 'five_hours', '2026-10-28T09:15:00Z', 10, '2026-10-28T14:00:00Z'),
+        ('r2', 'src', 'codex', 'five_hours', '2026-10-28T09:45:00Z', 30, '2026-10-28T14:00:01Z'),
+        ('w1', 'src', 'codex', 'weekly', '2026-10-28T09:45:00Z', 3, '2026-11-02T00:00:00Z'),
+        ('r0', 'src', 'codex', 'five_hours', '2026-09-30T10:00:00Z', 50, '2026-09-30T15:00:00Z')`,
+    );
+    const created = (await (await post(reading)).json()) as { id: string };
+    expect(await list()).toEqual({
+      calibrations: [
+        { ...reading, id: created.id, origin: "manual" },
+        {
+          id: "r2",
+          subscriptionId: "plus",
+          windowKind: "five_hours",
+          observedAt: "2026-10-28T09:45:00.000Z",
+          observedPct: 30,
+          origin: "codex",
+        },
+        {
+          id: "w1",
+          subscriptionId: "plus",
+          windowKind: "weekly",
+          observedAt: "2026-10-28T09:45:00.000Z",
+          observedPct: 3,
+          origin: "codex",
+        },
+      ],
+    });
+    const before = bytes();
+    const res = await app().request("/api/calibrations/r2", { method: "DELETE" });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "calibration not found" });
+    expect(bytes()).toBe(before);
+    expect(await db.all("SELECT id FROM provider_quota_readings ORDER BY id")).toEqual([
+      { id: "r0" },
+      { id: "r1" },
+      { id: "r2" },
+      { id: "w1" },
+    ]);
+    // Codex readings are derived data: never written into the user's file.
+    expect(bytes()).not.toContain("codex");
   });
 
   it("never overwrites a corrupt file: reads and writes fail with a fixed error", async () => {

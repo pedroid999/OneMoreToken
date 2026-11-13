@@ -53,8 +53,12 @@ describe("session URL state (S11: the URL is the state; L21 UI routes)", () => {
   });
 
   it("drops unknown agents but keeps any id so the view can report it", () => {
-    expect(parseSessionState("?agent=codex&id=nope", anchor)).toMatchObject({ id: "nope" });
-    expect(parseSessionState("?agent=codex", anchor).agent).toBeUndefined();
+    expect(parseSessionState("?agent=cursor&id=nope", anchor)).toMatchObject({ id: "nope" });
+    expect(parseSessionState("?agent=cursor", anchor).agent).toBeUndefined();
+  });
+
+  it("accepts Codex, a first-class ingest agent (T8)", () => {
+    expect(parseSessionState("?agent=codex", anchor).agent).toBe("codex");
   });
 
   it("builds list and detail requests from period, agent and id only", () => {

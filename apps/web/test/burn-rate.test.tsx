@@ -15,7 +15,7 @@ import type {
 } from "../src/quotas/contract";
 import { quotaTimeFormat, toLocalInput } from "../src/quotas/state";
 import { BurnRateView } from "../src/views/BurnRateView";
-import { fakeColorScheme, memoryStorage } from "./helpers";
+import { type DownloadSeam, fakeColorScheme, installDownloadSeam, memoryStorage } from "./helpers";
 
 const from = "2026-01-01T00:00:00.000Z";
 const to = "2026-01-08T00:00:00.000Z";
@@ -182,8 +182,10 @@ let requests: Array<{ url: string; method: string; body?: string; type?: string 
 let quotasBody: () => Response;
 let calibrationsBody: () => Response;
 let postResponse: () => Response;
+let seam: DownloadSeam;
 
 beforeEach(() => {
+  seam = installDownloadSeam();
   window.history.replaceState(
     null,
     "",
@@ -214,6 +216,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  seam.restore();
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -448,6 +451,40 @@ describe("Burn rate (S3, S4, S9)", () => {
     expect(await within(form).findByText(en.burnRate.calibration.errors.rejected)).toBeTruthy();
   });
 
+  it("shows the origin of each reading and keeps Codex readings read-only", async () => {
+    calibrationsBody = () =>
+      json({
+        calibrations: [
+          ...entries().map((entry) => ({ ...entry, origin: "manual" })),
+          {
+            id: "codex-1",
+            subscriptionId: "claude-pro",
+            windowKind: "five_hours",
+            observedAt: "2026-01-07T22:00:00.000Z",
+            observedPct: 40,
+            origin: "codex",
+          },
+        ],
+      });
+    await view();
+    const claudeRegion = await region("Claude Pro");
+    const table = within(claudeRegion).getByRole("table", { name: en.burnRate.readings.title });
+    const rows = within(table).getAllByRole("row").slice(1);
+    const codexRows = rows.filter((row) =>
+      row.textContent?.includes(en.burnRate.readings.origins.codex),
+    );
+    expect(codexRows).toHaveLength(1);
+    const codexRow = codexRows[0] as HTMLElement;
+    expect(codexRow.textContent).toContain(en.burnRate.readings.readOnly);
+    expect(within(codexRow).queryByRole("button")).toBeNull();
+    const manualRows = rows.filter((row) => row !== codexRow);
+    expect(manualRows.length).toBeGreaterThan(0);
+    for (const row of manualRows) {
+      expect(row.textContent).toContain(en.burnRate.readings.origins.manual);
+      expect(within(row).getByRole("button", { name: /^Delete the/ })).toBeTruthy();
+    }
+  });
+
   it("deletes a reading and refetches", async () => {
     await view();
     const claudeRegion = await region("Claude Pro");
@@ -545,5 +582,122 @@ describe("Burn rate states", () => {
     expect(document.body.textContent).not.toContain("PRIVATE");
     fireEvent.click(screen.getByRole("button", { name: en.common.retry }));
     expect(await region("Claude Pro")).toBeTruthy();
+  });
+});
+
+describe("Burn rate exports (S7, Phase 4 L30)", () => {
+  const slug = "2026-01-01-2026-01-08";
+  const csvButton = (scope: HTMLElement, name: string) =>
+    within(scope).getByRole("button", { name: en.export.csvAria.replace("{{name}}", name) });
+  const section = (scope: HTMLElement, name: string) => within(scope).getByRole("region", { name });
+
+  it("offers PNG and SVG for the 5-hour timeline chart", async () => {
+    await view();
+    const timeline = section(await region("Claude Pro"), en.burnRate.timeline.title);
+    const png = within(timeline).getByRole("button", {
+      name: en.export.pngAria.replace("{{name}}", en.burnRate.timeline.title),
+    });
+    expect(png.textContent).toBe(en.export.png);
+    const svg = within(timeline).getByRole("button", {
+      name: en.export.svgAria.replace("{{name}}", en.burnRate.timeline.title),
+    });
+    expect(svg.textContent).toBe(en.export.svg);
+  });
+
+  it("downloads the 5-hour timeline as CSV with raw instants, percentages and levels", async () => {
+    await view();
+    const timeline = section(await region("Claude Pro"), en.burnRate.timeline.title);
+    fireEvent.click(csvButton(timeline, en.burnRate.timeline.title));
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    const expected = [
+      [
+        en.burnRate.timeline.start,
+        en.burnRate.timeline.end,
+        en.burnRate.timeline.consumption,
+        en.burnRate.timeline.level,
+      ].join(","),
+      "2026-01-07T10:00:00.000Z,2026-01-07T15:00:00.000Z,80,warn",
+      "2026-01-07T20:00:00.000Z,2026-01-08T01:00:00.000Z,42.5,ok",
+    ].join("\r\n");
+    expect(seam.downloads[0]?.name).toBe(`burn-rate-timeline-claude-pro-${slug}.csv`);
+    expect(await seam.text(seam.downloads[0])).toBe(`${expected}\r\n`);
+  });
+
+  it("downloads the over-limit table as CSV with the window token and the ISO interval", async () => {
+    await view();
+    const opencode = section(await region("OpenCode Go"), en.burnRate.overLimit.title);
+    fireEvent.click(csvButton(opencode, en.burnRate.overLimit.title));
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    const expected = [
+      [
+        en.burnRate.overLimit.window,
+        en.burnRate.overLimit.period,
+        en.burnRate.overLimit.amount,
+      ].join(","),
+      "five_hours,2026-01-03T00:00:00.000Z/2026-01-03T05:00:00.000Z,2.4",
+    ].join("\r\n");
+    expect(seam.downloads[0]?.name).toBe(`burn-rate-over-limit-opencode-go-${slug}.csv`);
+    expect(await seam.text(seam.downloads[0])).toBe(`${expected}\r\n`);
+    // Nothing over the limit: no control to offer (L30 item 4).
+    const claude = await region("Claude Pro");
+    expect(
+      within(claude).queryByRole("button", {
+        name: en.export.csvAria.replace("{{name}}", en.burnRate.overLimit.title),
+      }),
+    ).toBeNull();
+  });
+
+  it("downloads the readings as CSV with the ISO instant, the raw percentage and the origin", async () => {
+    calibrationsBody = () =>
+      json({
+        calibrations: [
+          ...entries().map((entry) => ({ ...entry, origin: "manual" })),
+          {
+            id: "codex-1",
+            subscriptionId: "claude-pro",
+            windowKind: "five_hours",
+            observedAt: "2026-01-07T22:00:00.000Z",
+            observedPct: 40,
+            origin: "codex",
+          },
+        ],
+      });
+    await view();
+    const claude = await region("Claude Pro");
+    fireEvent.click(csvButton(claude, en.burnRate.readings.title));
+    await waitFor(() => expect(seam.downloads).toHaveLength(1));
+    const expected = [
+      [
+        en.burnRate.readings.window,
+        en.burnRate.readings.observedAt,
+        en.burnRate.readings.observed,
+        en.burnRate.readings.predicted,
+        en.burnRate.readings.delta,
+        en.burnRate.readings.note,
+        en.burnRate.readings.origin,
+      ].join(","),
+      // Newest first; the Codex reading has no prediction and no note in the contract.
+      "five_hours,2026-01-07T22:00:00.000Z,40,,,,codex",
+      "five_hours,2026-01-07T21:00:00.000Z,30,28,-2,,manual",
+      "five_hours,2026-01-07T12:00:00.000Z,40,41,1,console reading,manual",
+      "weekly,2026-01-06T09:00:00.000Z,15,,,,manual",
+    ].join("\r\n");
+    expect(seam.downloads[0]?.name).toBe("burn-rate-readings-claude-pro.csv");
+    expect(await seam.text(seam.downloads[0])).toBe(`${expected}\r\n`);
+  });
+
+  it("uses the Spanish labels for the export controls", async () => {
+    await view("es");
+    const timeline = section(await region("Claude Pro"), es.burnRate.timeline.title);
+    expect(
+      within(timeline).getByRole("button", {
+        name: es.export.csvAria.replace("{{name}}", es.burnRate.timeline.title),
+      }).textContent,
+    ).toBe(es.export.csv);
+    expect(
+      within(timeline).getByRole("button", {
+        name: es.export.pngAria.replace("{{name}}", es.burnRate.timeline.title),
+      }).textContent,
+    ).toBe(es.export.png);
   });
 });
