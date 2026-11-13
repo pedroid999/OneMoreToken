@@ -217,6 +217,10 @@ describe("GET /api/sessions (S10, L21 API: list)", () => {
     expect(limited.sessions.map((s) => s.id)).toEqual([OTHER, CHILD]);
     expect(limited.truncated).toBe(true);
     expect((await listBody("&limit=4")).truncated).toBe(false);
+    // Codex is a first-class ingest agent, so it filters like the others (T8).
+    await session("codex-one", "codex", "2026-01-02T12:00:00Z");
+    await turn("k0", "codex-one", 0, "assistant", "2026-01-02T12:01:00Z", [1, 1, 1, 1, 1, 1]);
+    expect((await listBody("&agent=codex")).sessions.map((s) => s.id)).toEqual([sid("codex-one")]);
   });
 
   it("defaults to the rolling seven days like the Summary", async () => {
@@ -241,7 +245,7 @@ describe("GET /api/sessions (S10, L21 API: list)", () => {
     `from=${from}`,
     `from=${to}&to=${from}`,
     "from=2025-01-01T00:00:00Z&to=2027-01-01T00:00:00Z",
-    `from=${from}&to=${to}&agent=codex`,
+    `from=${from}&to=${to}&agent=cursor`,
     `from=${from}&to=${to}&agent=`,
     `from=${from}&to=${to}&agent=pi&agent=pi`,
     `from=${from}&to=${to}&limit=0`,

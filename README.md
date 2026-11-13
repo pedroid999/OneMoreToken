@@ -6,17 +6,20 @@
   A local dashboard to explore how you use AI coding agents: tokens, cost, subscription quotas and the agent profiles behind them.
 </p>
 
-> **Status:** phase 1 in progress. Claude Code and gentle-shell/Pi metrics ingestion and the period summary are available. Quotas and profile attribution arrive in phase 3.
+> **Status:** phases 0 to 3 are released and phase 4 (Git insights, SQL console, markdown reports, exports, threshold alerts and the Codex adapter) is delivered on `develop`, waiting for its promotion to `main`.
 
 ## What it does
 
 One More Token reads the sessions your coding agents already store on your machine, normalizes them, and lets you explore them freely:
 
-- **One view for every agent:** Claude Code, gentle-shell/Pi and OpenCode first, more to come.
+- **One view for every agent:** Claude Code, gentle-shell/Pi, OpenCode and Codex first, more to come.
 - **Burn rate:** your 5-hour, weekly and monthly quota windows over time, with a projection of when you will hit the limit.
 - **Explorer:** pivot any metric (input, output, cache, cost) by any dimension (agent, model, profile, repo, hour…) into any chart.
 - **gentle-shell profiles:** compare what each routing profile really costs, by role and by kind of task.
 - **Git insights:** tokens per commit, per PR, and sessions that never shipped.
+- **SQL console:** query the local DuckDB warehouse and keep the queries you use.
+- **Reports and alerts:** a weekly report and a monthly «wrapped» in markdown, and a message when a quota window crosses a threshold you set.
+- **Exports:** any chart as PNG or SVG, any table as CSV.
 - **Light and dark Kanagawa themes**, keyboard-first, in English and Spanish.
 
 Everything runs locally. Nothing leaves your machine.
@@ -44,7 +47,7 @@ pnpm omt ingest --agent opencode --path /absolute/opencode-data-directory
 pnpm omt ingest --url http://127.0.0.1:7318 --agent claude-code
 ```
 
-The CLI is an HTTP client, not another DuckDB writer (spec §11.1). `--url` accepts only loopback HTTP addresses (`localhost`, `127.0.0.1`, `[::1]`), without credentials, query strings or redirects. By default the server recursively discovers `~/.claude/projects/`, `~/.gentle-shell/agent/sessions/`, gentle-shell subagents in `~/.gentle-shell/agent/gentle-agents/`, `~/.pi/agent/sessions/` and the OpenCode data directory `${XDG_DATA_HOME:-~/.local/share}/opencode/`; absent defaults are ignored. `--agent` limits discovery to one adapter. `--path` requires `--agent` and an absolute directory. Symlink files and directories (including linked-home ancestors) are not followed, avoiding loops and duplicate linked homes.
+The CLI is an HTTP client, not another DuckDB writer (spec §11.1). `--url` accepts only loopback HTTP addresses (`localhost`, `127.0.0.1`, `[::1]`), without credentials, query strings or redirects. By default the server recursively discovers `~/.claude/projects/`, `~/.gentle-shell/agent/sessions/`, gentle-shell subagents in `~/.gentle-shell/agent/gentle-agents/`, `~/.pi/agent/sessions/`, `~/.codex/sessions/` and the OpenCode data directory `${XDG_DATA_HOME:-~/.local/share}/opencode/`; absent defaults are ignored. `--agent` limits discovery to one adapter. `--path` requires `--agent` and an absolute directory. Symlink files and directories (including linked-home ancestors) are not followed, avoiding loops and duplicate linked homes.
 
 gentle-shell subagent transcripts (`gentle-agents/sessions/*.jsonl`, Pi v3 format) are ingested as child sessions of the gentle-shell session that launched them. The link comes from the task records in `gentle-agents/tasks/*.json`: only their metadata (task id, agent role, parent session id, `provider/model`, thinking level, linked transcript file and timestamps) is read; prompts, results, labels, working directories and threads are never stored. Each child gets one subagent run (role, model, effort, duration, summed tokens and costs). A transcript without a task record, or whose parent transcript is absent, is still ingested, without a parent or run (role unknown). `--since` selects a subagent transcript when it or one of its task records changed after the timestamp. `--path` always reads plain transcripts.
 
@@ -62,7 +65,7 @@ Exit status is 0 for a successful API request, even with counted file issues; 1 
 
 #### Ingestion API contract
 
-`POST /api/ingest` accepts an `application/json` object with optional `agent` (`claude-code`, `gentle-shell`, `pi`, `opencode`), `path` (absolute directory, requires `agent`), and `since` (ISO timestamp with timezone). Unknown fields, malformed JSON and bodies exceeding 16 KiB return 400 before discovery or database access. Host protection remains enabled; hostile browser Origins return 403 and non-JSON content returns 415. Loopback HTTP Origins, including Vite's `http://localhost:5173`, are accepted; no permissive CORS headers are emitted.
+`POST /api/ingest` accepts an `application/json` object with optional `agent` (`claude-code`, `gentle-shell`, `pi`, `opencode`, `codex`), `path` (absolute directory, requires `agent`), and `since` (ISO timestamp with timezone). Unknown fields, malformed JSON and bodies exceeding 16 KiB return 400 before discovery or database access. Host protection remains enabled; hostile browser Origins return 403 and non-JSON content returns 415. Loopback HTTP Origins, including Vite's `http://localhost:5173`, are accepted; no permissive CORS headers are emitted.
 
 The response is `IngestMetrics`, exported from `apps/cli/src/ingest/service.ts`: `{ files, persisted, skipped, failed, issues }`, all nonnegative integer counters for this request. `files` counts selected JSONL files attempted; `persisted`/`skipped` are checkpoint outcomes; `failed` counts file processing/directory discovery failures; `issues` counts newly parsed row issues plus those failures. Missing defaults and symlinks are ignored. Stored issues in unchanged files are not recounted. Filesystem/parser failures produce only safe counters, with no source paths or exception details in the response.
 
@@ -70,7 +73,7 @@ The response is `IngestMetrics`, exported from `apps/cli/src/ingest/service.ts`:
 
 ### Period summary
 
-The Summary view reads local aggregates without triggering ingestion (spec §7.1–§7.2, §8.5). Select the last 7 or 30 days; explicit `from` and `to` URL parameters preserve the period through browser history and language changes. Other URL parameters are preserved, but do not filter this phase-1 summary. Dates and daily trends use UTC. Theme and density preferences still apply.
+The Summary view reads local aggregates without triggering ingestion (spec §7.1–§7.2, §8.5). Select the last 7 or 30 days; explicit `from` and `to` URL parameters preserve the period through browser history and language changes. Other URL parameters are preserved, but do not filter the summary. Dates and daily trends use UTC. Theme and density preferences still apply.
 
 #### Summary API contract
 
@@ -107,7 +110,7 @@ The Summary view reads local aggregates without triggering ingestion (spec §7.1
 - `pricing` describes the currently loaded catalog: `basis` is `current-reference` or `historical` (the default for catalogs without policy metadata); `observedAt` is its UTC `YYYY-MM-DD` reference date or `null` for historical pricing. In current-reference mode the UI labels computed cost **Estimated API equivalent**: standard/global rates at that reference date applied to past usage, **not historical billed prices or subscription charges**. Unknown cache-write TTL assumes the short rate; no fast-mode, batch discount or geographic premium is inferred. Historical catalogs retain event-date pricing and the Computed cost label.
 - Computed sums and known coverage include only usage whose source checkpoint `pricing_hash` matches `hashContent(JSON.stringify(PricingFileSchema.parse(pricing)))` for the current catalog. `pricing.staleUsageTurns` counts selected usage rows with a missing or mismatched hash (including rows whose stored computed cost is already null); these count as unknown, never silently relabelled with new rates. Matching-hash missing/unresolved models are ordinary unknowns, not stale. Tokens and reported costs are unaffected. GET never rewrites stored costs: rerun `pnpm omt ingest` to reprice available source files. Stale sources no longer present remain unknown; old stored rates are never substituted.
 - All numeric JSON fields are nonnegative finite numbers. Integer aggregates (including DuckDB bigint/HUGEINT results) must fit `Number.MAX_SAFE_INTEGER`; USD retains floating-point precision from stored DOUBLE values, but is also rejected above that magnitude. Nonfinite/unsafe aggregates or database failures return HTTP 500 with exactly `{"error":"summary unavailable"}` rather than silently corrupting numbers or exposing exceptions.
-- `issues` counts **all currently stored** ingestion issues by severity, not just issues in the selected turn period. No source paths, messages, content, models or profile guesses are returned. Quota is explicitly unavailable until phase 3; no subscription limits or percentages are fabricated. Summary reads share the ingestion connection and `withDatabase` queue and never mutate data. Successful reads disable HTTP caching.
+- `issues` counts **all currently stored** ingestion issues by severity, not just issues in the selected turn period. No source paths, messages, content, models or profile guesses are returned. Quota is not part of the Summary, which has its own view; no subscription limits or percentages are fabricated here. Summary reads share the ingestion connection and `withDatabase` queue and never mutate data. Successful reads disable HTTP caching.
 
 ### Explorer API
 
@@ -142,7 +145,7 @@ The pivot backend for the Explorer (spec §7.2). It reads aggregates only, never
 ```
 
 - **Metrics** (1–4, no duplicates): `input`, `output`, `cacheRead`, `cacheWrite`, `total` (raw token integers; the UI formats millions), `computedCost`, `reportedCost`, `cacheHitRatio`, `turns`, `sessions` (distinct). Costs are sums of known values only, `null` when none is known, never an inferred zero; each cost metric adds `<metric>Known` and `<metric>Unknown` coverage columns counting usage rows, exactly as in the Summary (computed cost is known only when priced with the current catalog). `cacheHitRatio` = cacheRead / (input + cacheRead + cacheWrite), `null` when that sum is 0. `turns` counts all turns, including user turns.
-- **Dimensions** (0–2, no duplicates): `agent`, `model`, `provider`, `effort`, `repo`, `branch`, `tool`, `day` (`YYYY-MM-DD`), `hourOfDay` (0–23), `dayOfWeek` (ISO, 1 = Monday … 7 = Sunday), all in UTC. `subscription`, `profile` and `role` are accepted, grouped as `null` and listed in `unavailable` until phase 3. `repo` groups the stored column, which no adapter fills yet; it is never derived from the working directory. Rows are ordered by dimension values ascending, nulls last; `truncated` is true when more than `limit` (1–10000, default 1000) groups exist.
+- **Dimensions** (0–2, no duplicates): `agent`, `model`, `provider`, `effort`, `repo`, `branch`, `tool`, `day` (`YYYY-MM-DD`), `hourOfDay` (0–23), `dayOfWeek` (ISO, 1 = Monday … 7 = Sunday), all in UTC. `subscription`, `profile` and `role` group the attributed values of each turn and stay `null` for turns that were not attributed. `repo` groups the stored column, which no adapter fills yet; it is never derived from the working directory. Rows are ordered by dimension values ascending, nulls last; `truncated` is true when more than `limit` (1–10000, default 1000) groups exist.
 - **Tools.** Grouping by `tool` counts each turn once per distinct tool it called, so groups overlap and `overlapping` is `true`; turns without tools form the `null` group. A `tool` filter without tool grouping selects turns that did (`in`) or did not (`notIn`) call any listed tool, without duplicating them.
 - **Filters** (at most 10, combined with AND): `{ dimension, op: "in" | "notIn", values }` with 1–50 non-empty strings. Values are compared with the dimension's text form (`"23"` for `hourOfDay`) and always bound as parameters. `notIn` keeps `null` groups; unavailable dimensions behave as `null`.
 - **Range.** `from` and `to` are required and follow the Summary rules: ISO timestamps with timezone, millisecond precision at most, `from < to`, at most 366 UTC days, selecting turns by timestamp in `[from, to)`.
@@ -163,7 +166,7 @@ The Session view backend (spec §7.1): metrics only, no message content. Both en
 
 #### `GET /api/sessions?from&to&agent&limit`
 
-- Lists sessions with at least one turn in `[from, to)`. `from`/`to` follow the Summary rules exactly (both or neither; default the rolling seven days). `agent` is optional (`claude-code`, `gentle-shell`, `pi`, `opencode`); `limit` is an integer 1–500 (default 100). Repeated, unknown-agent or invalid values return 400 `{"error":"invalid sessions query"}` before any database read.
+- Lists sessions with at least one turn in `[from, to)`. `from`/`to` follow the Summary rules exactly (both or neither; default the rolling seven days). `agent` is optional (`claude-code`, `gentle-shell`, `pi`, `opencode`, `codex`); `limit` is an integer 1–500 (default 100). Repeated, unknown-agent or invalid values return 400 `{"error":"invalid sessions query"}` before any database read.
 - Each item: `id`, `agent`, `cwd` (last path segment only; the full path is never returned), `branch`, `startedAt`, `endedAt`, `parentId`, `turns`, `usageTurns`, `tokens` (four categories and `total`), `costs.reported`/`costs.computed` as known-only sums with `known`/`unknown` counts (computed cost is known only when priced with the current catalog, as in the Summary), `compactions` and `children` (stored sessions whose parent is this one). Counts, tokens and costs cover only the session's turns inside the period.
 - Ordered newest started first (then by id); `truncated` is true when more than `limit` sessions match. `pricing` gives the catalog `basis` and `observedAt`.
 

@@ -324,6 +324,7 @@
     "allAgents": "All agents",
     "agentName": {
       "claudeCode": "Claude Code",
+      "codex": "Codex",
       "gentleShell": "gentle-shell",
       "pi": "Pi",
       "opencode": "OpenCode"

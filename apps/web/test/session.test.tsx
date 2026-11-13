@@ -215,6 +215,9 @@ describe("Session list (S10, L21 UI: /session)", () => {
     fireEvent.click(within(agents).getByRole("radio", { name: "OpenCode" }));
     expect(new URLSearchParams(window.location.search).get("agent")).toBe("opencode");
     await waitFor(() => expect(requests.at(-1)).toContain("&agent=opencode"));
+    fireEvent.click(within(agents).getByRole("radio", { name: en.session.agentName.codex }));
+    expect(new URLSearchParams(window.location.search).get("agent")).toBe("codex");
+    await waitFor(() => expect(requests.at(-1)).toContain("&agent=codex"));
     fireEvent.click(within(agents).getByRole("radio", { name: en.session.allAgents }));
     expect(new URLSearchParams(window.location.search).has("agent")).toBe(false);
   });
