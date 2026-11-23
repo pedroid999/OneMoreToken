@@ -20,6 +20,7 @@ import {
 } from "./options";
 import { startReportScheduler } from "./reports/scheduler";
 import { type RunningServer, startServer, waitForSignal } from "./server";
+import { defaultWebDist } from "./web/static";
 
 export interface CliIo {
   stdout(text: string): void;
@@ -156,7 +157,10 @@ async function serveCommand(args: string[], io: CliIo, deps: CliDeps): Promise<n
   try {
     db = await openMigratedDatabase(parsed.options);
     server = await startServer(
-      createApp(db, { allowedHosts: [parsed.options.host] }),
+      createApp(db, {
+        allowedHosts: [parsed.options.host],
+        web: { dist: await defaultWebDist(io.env) },
+      }),
       parsed.options.host,
       parsed.options.port,
     );
