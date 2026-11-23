@@ -134,6 +134,7 @@ Almacenado en DuckDB. Nombres orientativos; el esquema exacto se define en `pack
 |---|---|---|
 | Claude (Pro/Max) | 5 horas y semanal | No pública en tokens: estimación + calibración |
 | OpenCode Go | 5 h: 12 $ · semanal: 30 $ · mensual: 60 $ | Dólares de uso |
+| NaN Gentle (nan.builders) | Mensual (periodo de facturación) | Tokens por modelo: DeepSeek V4 Flash 1.000M · GLM 5.3 Flash 500M |
 
 Los valores de límites viven en `data/subscriptions.json` y deben revisarse periódicamente.
 
