@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { DATA_DIR } from "./files";
+import { resolveDataDir } from "./files";
 
 // Explorer pivot vocabulary (spec §7.2). Closed enums: the server maps each name to a fixed SQL
 // fragment, so no client text ever reaches a query.
@@ -145,7 +145,7 @@ export type SavedView = z.infer<typeof SavedViewSchema>;
 const PRESET_KEY = /^explorer\.presets\.[a-zA-Z0-9]+\.(name|description)$/;
 
 /** Versioned presets in data/views (L2): read-only, names are i18n keys, id equals file name. */
-export function loadPresetViews(dir = join(DATA_DIR, "views")): SavedView[] {
+export function loadPresetViews(dir: string = join(resolveDataDir(), "views")): SavedView[] {
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
     .sort()
