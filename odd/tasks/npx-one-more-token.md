@@ -46,3 +46,6 @@ browser exec quoting (R1-browser-exec), pinned prerelease @duckdb dep, binary as
 served through utf8 readFile, host/URL IPv6 formatting, detectAgentRoots vs ingest env
 divergence, SPA fallback for missing assets with extensions, stage-publish pathname
 encoding on Windows, hidden io.env identity coupling. Delivery per ordinary policy.
+L6: Feature closed. PR #23 merged to main; one-more-token@0.5.1 published and verified on
+npm (dist-tag latest; npx one-more-token@latest serves the containment fix from 920db53).
+main checked out, publish staging removed, pnpm check green on main (1,071 tests).
