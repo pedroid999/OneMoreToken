@@ -37,3 +37,12 @@ L4: Published one-more-token@0.5.0 to npm (user completed publish with security-
 Verified live: npm view shows 0.5.0; `npx one-more-token@0.5.0 --help` runs from the registry.
 Note: publishConfig rewriting was unreliable; publish goes through scripts/stage-publish.mjs
 (commit 48d3f2d). Staging dir removed after publish. Commit 5 closes T5.
+L5: Native review of the candidate (lineage review-4e57e7239fc13a9c, tier high, lenses
+risk/readability/reliability, model nan/glm5.3-flash) completed: 1 CRITICAL finding R3-1
+(sibling-prefix path escape in web dist containment) corrected in commit 920db53
+(guard compares against root + sep, sibling-prefix escape test added), validated and
+APPROVED; authority burned. 12 advisory (non-blocking) findings recorded as follow-ups:
+browser exec quoting (R1-browser-exec), pinned prerelease @duckdb dep, binary assets
+served through utf8 readFile, host/URL IPv6 formatting, detectAgentRoots vs ingest env
+divergence, SPA fallback for missing assets with extensions, stage-publish pathname
+encoding on Windows, hidden io.env identity coupling. Delivery per ordinary policy.
