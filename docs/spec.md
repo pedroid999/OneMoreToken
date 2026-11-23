@@ -189,9 +189,9 @@ Un perfil define el enrutado completo: modelo, proveedor y esfuerzo del orquesta
 3. **Explorador:** pivot libre (§7.2).
 4. **Sesión:** detalle turno a turno, curva de contexto con compactaciones, herramientas, subagentes y diff de commits asociados.
 5. **Perfiles:** comparativas de §6.
-6. **Agentes:** misma clase de tarea en Claude Code, OpenCode y gentle-shell.
+6. **Agentes:** misma clase de tarea en Claude Code, OpenCode y gentle-shell (§7.3).
 7. **Git:** tokens por commit, por línea neta y por PR; sesiones sin commit («tokens huérfanos»).
-8. **Herramientas:** por herramienta, llamadas, errores, tiempo, tokens, coste y ritmo de consumo, para distinguir las herramientas eficientes de las que consumen en exceso.
+8. **Herramientas:** por herramienta, llamadas, errores, tiempo, tokens, coste y ritmo de consumo, para distinguir las herramientas eficientes de las que consumen en exceso (§7.3).
 9. **SQL:** consola sobre DuckDB con vistas guardadas.
 
 ### 7.2 Explorador (pivot)
@@ -202,6 +202,17 @@ Un perfil define el enrutado completo: modelo, proveedor y esfuerzo del orquesta
 - **Filtros** combinables y rango temporal libre.
 - Toda vista configurada se puede **guardar** como especificación Vega-Lite + consulta, en un fichero JSON.
 - Unidades por defecto en millones de tokens (M) con un decimal.
+
+### 7.3 Clases de tarea y herramientas
+
+Las vistas Agentes (§7.1.6) y Herramientas (§7.1.8) necesitan dos conceptos que el modelo de datos no tenía. Se resuelven así:
+
+- **Clase de tarea derivada.** Una sesión es `feature` cuando hay evidencia positiva de trabajo con documento: algún turno suyo está atribuido a un commit (`turn_commits`) o la sesión lanzó subagentes (`subagent_runs`). Es `inline` cuando la sesión tiene repositorio resuelto (`session_repos`) y ninguna de esas dos evidencias. Es `unknown` cuando no hay repositorio resuelto ni evidencia positiva: el dato no permite distinguir «no hizo commits» de «no miramos».
+- **Clase corregible.** La clase derivada se puede sobrescribir por sesión con un valor explícito `feature` o `inline`, que gana sobre la derivada y sobrevive a la reingesta. La interfaz indica siempre si la clase es derivada o corregida.
+- **Tokens y coste por herramienta.** No existen por llamada y el histórico no se puede reconstruir. La vista Herramientas muestra por herramienta las llamadas, los errores y la duración, que sí son por llamada, y además los turnos, tokens y coste de los turnos en los que se usó esa herramienta, marcados como cifras del turno y solapadas: si un turno usó tres herramientas, sus tokens aparecen en las tres filas y no se pueden sumar entre filas.
+- **Ritmo de consumo por herramienta** se lee del día del turno (`turns.ts`), no de la llamada: `tool_calls` no guarda marca de tiempo.
+- **Nombres canónicos.** `Read`, `read` y `exec` son la misma idea con tres nombres, uno por agente. Un catálogo en `data/` mapea cada nombre crudo a un identificador canónico (`read`, `write`, `edit`, `bash`, `grep`, `glob`, `task`, `web`…). La vista Herramientas y la dimensión `herramienta` del Explorador usan el nombre canónico, y el crudo queda visible por agente para auditar el mapeo. Un nombre sin alias cae a su forma en minúsculas.
+- **Errores de Codex.** El adaptador de Codex no registra errores de herramienta, así que su tasa de error es desconocida, nunca 0 %. Un agente sin registro de errores se muestra como desconocido en lugar de cero.
 
 ---
 
@@ -380,6 +391,13 @@ El README termina con el badge oficial **«Built with Gentle-AI»**, que el prop
 | 2 | Explorador pivot, vista Sesión, adaptador OpenCode (SQLite + legacy) | Al menos 5 vistas guardadas útiles |
 | 3 | Cuotas y calibración, perfiles de gentle-shell | Desviación media frente a calibraciones documentada |
 | 4 | Git, informes, alertas, consola SQL, Codex | Informe semanal generado automáticamente |
+| 5 | Vistas Agentes y Herramientas (§7.1.6, §7.1.8) y los conceptos de §7.3: clase de tarea derivada y corregible, catálogo canónico de herramientas, métricas por herramienta a nivel de turno | Las dos vistas abren con datos reales; la clase de tarea se puede corregir por sesión y sobrevive a una reingesta; la tasa de error de Codex se muestra como desconocida |
+
+Deudas conocidas de la fase 5, documentadas y fuera de su alcance:
+
+- El adaptador de gentle-shell descarta las herramientas por subagente que sí trae el registro de tarea, así que esas llamadas no aparecen en la vista Herramientas.
+- Los tokens y el coste por herramienta seguirán siendo del turno mientras ningún adaptador los registre por llamada.
+- `tool_calls` no guarda marca de tiempo, así que el ritmo por herramienta es diario y no horario.
 
 ---
 
