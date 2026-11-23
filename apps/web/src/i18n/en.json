@@ -420,6 +420,12 @@
       "title": "Associated commits",
       "empty": "No commit is attributed to this session's turns.",
       "note": "Line counts per commit; diffs are not stored."
+    },
+    "taskClass": {
+      "label": "Task class",
+      "value": "task: {{value}} ({{source}})",
+      "auto": "Derived",
+      "error": "The task class was not saved. Check the local API and retry."
     }
   },
   "quota": {
@@ -428,6 +434,55 @@
       "fiveHours": "5-hour window",
       "weekly": "weekly window",
       "monthly": "monthly window"
+    }
+  },
+  "taskClass": {
+    "feature": "Feature",
+    "inline": "Inline",
+    "unknown": "Unknown",
+    "source": {
+      "derived": "Derived",
+      "corrected": "Corrected"
+    }
+  },
+  "agents": {
+    "title": "Agents",
+    "intro": "The same task class across agents. The class is derived per session from its commits and subagents, and it can be corrected in the session view.",
+    "error": "Agents report unavailable. Check the local API and the period (both ISO bounds, at most 366 UTC days), then retry.",
+    "headline": "{{derived}} sessions with a derived class · {{corrected}} corrected",
+    "notAvailable": "n/a",
+    "noCost": "—",
+    "filter": {
+      "label": "Task class filter",
+      "all": "All classes"
+    },
+    "comparison": {
+      "title": "Task class by agent",
+      "filtered": "No row matches the selected task class.",
+      "empty": "No session has a task class in this period."
+    },
+    "chart": {
+      "title": "Sessions by task class",
+      "chartName": "Sessions per task class and agent",
+      "taskClass": "Task class",
+      "agent": "Agent",
+      "sessions": "Sessions"
+    },
+    "column": {
+      "taskClass": "Task class",
+      "source": "Class origin",
+      "agent": "Agent",
+      "sessions": "Sessions",
+      "turns": "Turns",
+      "tokens": "Tokens",
+      "computedCost": "Computed cost",
+      "reportedCost": "Reported cost",
+      "cacheHitRatio": "Cache hit ratio"
+    },
+    "empty": {
+      "title": "No sessions in this period",
+      "body": "Ingest your local agent sessions, or pick a longer period.",
+      "command": "pnpm omt ingest"
     }
   },
   "settings": {
@@ -619,6 +674,54 @@
     "notApplicable": "n/a",
     "yes": "Yes",
     "no": "No"
+  },
+  "tools": {
+    "title": "Tools",
+    "intro": "Calls, errors and duration are counted per tool call. Turns, tokens and cost belong to the turns that used the tool.",
+    "overlap": "Turn figures overlap between rows: a turn that used three tools counts its tokens and cost in all three, so they cannot be summed.",
+    "headline": "{{calls}} calls across {{tools}} tools · {{tokens}} tokens in the turns that used them",
+    "errorsUnknownNote": "An agent that does not record tool errors shows the count as unknown, not as zero.",
+    "error": "Tools report unavailable. Check the local API and the period (both ISO bounds, at most 366 UTC days), then retry.",
+    "unknown": "Unknown",
+    "noValue": "—",
+    "seconds": "{{value}} s",
+    "chart": {
+      "title": "Daily tokens by tool",
+      "chartName": "Daily tokens of the tools that burn the most",
+      "note": "Top {{count}} tools by tokens; the rest of the period's tools are only in the table.",
+      "empty": "No daily tokens per tool in this period.",
+      "day": "Day · UTC",
+      "tokens": "Tokens",
+      "tool": "Tool"
+    },
+    "table": {
+      "title": "By tool",
+      "empty": "No tool calls in this period."
+    },
+    "raw": {
+      "title": "Raw names by agent",
+      "body": "The canonical name maps the raw name each agent records; both are listed so the mapping can be audited.",
+      "empty": "No tool calls per agent in this period."
+    },
+    "column": {
+      "tool": "Tool",
+      "calls": "Calls",
+      "errors": "Errors",
+      "duration": "Duration",
+      "avgDuration": "Average duration",
+      "turns": "Turns",
+      "sharedTurns": "Shared turns",
+      "tokens": "Tokens",
+      "computedCost": "Computed cost",
+      "reportedCost": "Reported cost",
+      "agent": "Agent",
+      "rawName": "Raw name"
+    },
+    "empty": {
+      "title": "No tool calls in this period",
+      "body": "Ingest your local agent sessions, or pick a longer period.",
+      "command": "pnpm omt ingest"
+    }
   },
   "sql": {
     "title": "SQL console",

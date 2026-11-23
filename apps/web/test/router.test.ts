@@ -29,7 +29,7 @@ describe("router (spec §8.1: the URL reflects the state)", () => {
     expect(matchRoute("/settings/extra").id).toBe("summary");
   });
 
-  it("assigns the spec §12 phase to every view not built in phase 0", () => {
+  it("leaves no view pending after phase 5", () => {
     const phases = Object.fromEntries(ROUTES.map((r) => [r.id, r.phase]));
     expect(phases).toEqual({
       summary: undefined,
@@ -37,9 +37,10 @@ describe("router (spec §8.1: the URL reflects the state)", () => {
       explorer: undefined,
       session: undefined,
       profiles: undefined,
-      agents: 2,
+      agents: undefined,
       git: undefined,
-      tools: 2,
+      tools: undefined,
+      sql: undefined,
       settings: undefined,
       about: undefined,
     });

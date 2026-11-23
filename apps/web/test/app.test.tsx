@@ -100,10 +100,22 @@ describe("app shell", () => {
     expect(screen.getByText("pnpm omt ingest").tagName).toBe("CODE");
   });
 
-  it("shows the upcoming phase for views not built yet", async () => {
+  it("shows Tools at its route instead of the upcoming placeholder", async () => {
     await renderApp("/tools");
-    expect(screen.getByRole("heading", { level: 1, name: es.nav.tools })).toBeTruthy();
-    expect(screen.getByText("Esta vista llega en la fase 2.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: es.tools.title })).toBeTruthy();
+    expect(screen.queryByText(/llega en la fase/)).toBeNull();
+    expect(screen.getByRole("link", { name: es.nav.tools }).getAttribute("aria-current")).toBe(
+      "page",
+    );
+  });
+
+  it("shows Agents at its route instead of the upcoming placeholder", async () => {
+    await renderApp("/agents");
+    expect(screen.getByRole("heading", { level: 1, name: es.agents.title })).toBeTruthy();
+    expect(screen.queryByText(/llega en la fase/)).toBeNull();
+    expect(screen.getByRole("link", { name: es.nav.agents }).getAttribute("aria-current")).toBe(
+      "page",
+    );
   });
 
   it("shows the SQL console at its route instead of the upcoming placeholder", async () => {
