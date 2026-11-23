@@ -1,3 +1,4 @@
+export * from "./agents/error-status";
 export * from "./alerts";
 export * from "./data/files";
 export * from "./data/views";
@@ -15,3 +16,4 @@ export * from "./sql/queries";
 export * from "./subscriptions/calibrations";
 export * from "./subscriptions/config";
 export * from "./subscriptions/provider-readings";
+export * from "./tasks/task-class";

@@ -1,6 +1,14 @@
 /** Metrics-only GET /api/sessions and GET /api/sessions/:id contracts (spec §7.1, L21). See README. */
 import type { CostCoverage, SummaryPeriod } from "../summary/contract";
 
+/** Task class of a session and whether it is derived or corrected (spec §7.3, phase 5 S2). */
+export type SessionTaskClassValue = "feature" | "inline" | "unknown";
+export type SessionTaskClassSource = "derived" | "corrected";
+export interface SessionTaskClass {
+  value: SessionTaskClassValue;
+  source: SessionTaskClassSource;
+}
+
 export interface SessionTokens {
   input: number;
   output: number;
@@ -90,4 +98,6 @@ export interface SessionDetail {
   pricing: SessionPricing;
   /** One per sha (clones of a repository count once), oldest authored first. */
   commits: SessionCommit[];
+  /** The correction when there is one, else the class derived from the session's evidence. */
+  taskClass: SessionTaskClass;
 }

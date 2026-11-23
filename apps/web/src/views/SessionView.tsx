@@ -16,10 +16,13 @@ export function SessionView() {
   const state = useMemo(() => parseSessionState(search, anchor), [search, anchor]);
   return (
     <div className="session">
-      <h1 className="view__title">{t("session.title")}</h1>
       {state.id === undefined ? (
-        <SessionList state={state} language={language} />
+        <>
+          <h1 className="view__title">{t("session.title")}</h1>
+          <SessionList state={state} language={language} />
+        </>
       ) : (
+        // The detail renders its own heading so the task class control sits next to it (S2).
         <SessionDetail id={state.id} language={language} />
       )}
     </div>

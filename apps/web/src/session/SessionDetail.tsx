@@ -13,6 +13,8 @@ import { agentLabel, dateTimeFormat, roleLabel } from "./labels";
 import { SessionCommits } from "./SessionCommits";
 import { SessionLink } from "./SessionLink";
 import { contextRows, contextSpec, detailRequest, isSessionId, toolsSummary } from "./state";
+import { TaskClassControl } from "./TaskClassControl";
+import { readTaskClass } from "./taskClass";
 import { useResource } from "./useResource";
 
 // Vega is most of the bundle: load it only when the context curve is shown (as in the Explorer).
@@ -34,6 +36,7 @@ export function SessionDetail({ id, language }: { id: string; language: Language
   const resource = useResource(valid ? detailRequest(id) : null, isDetail);
   const data = resource.data;
   const notFound = !valid || resource.notFound;
+  const taskClass = readTaskClass(data);
   const back = (
     <SessionLink patch={{ id: undefined }} className="session__link">
       {t("session.back")}
@@ -42,6 +45,11 @@ export function SessionDetail({ id, language }: { id: string; language: Language
 
   return (
     <>
+      {/* The task class of the open session is corrected right next to the view heading (S2). */}
+      <div className="session__header">
+        <h1 className="view__title">{t("session.title")}</h1>
+        {!notFound && taskClass ? <TaskClassControl sessionId={id} taskClass={taskClass} /> : null}
+      </div>
       <p className="session__back">{back}</p>
       <Panel
         title={t("session.detail.overview")}

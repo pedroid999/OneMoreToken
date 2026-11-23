@@ -6,7 +6,7 @@
   A local dashboard to explore how you use AI coding agents: tokens, cost, subscription quotas and the agent profiles behind them.
 </p>
 
-> **Status:** phases 0 to 3 are released and phase 4 (Git insights, SQL console, markdown reports, exports, threshold alerts and the Codex adapter) is delivered on `develop`, waiting for its promotion to `main`.
+> **Status:** phases 0 to 4 are released on `main`; phase 5 (the Agents and Tools views, spec §7.3) is in progress on `feat/phase-5-views`.
 
 ## What it does
 
@@ -16,6 +16,8 @@ One More Token reads the sessions your coding agents already store on your machi
 - **Burn rate:** your 5-hour, weekly and monthly quota windows over time, with a projection of when you will hit the limit.
 - **Explorer:** pivot any metric (input, output, cache, cost) by any dimension (agent, model, profile, repo, hour…) into any chart.
 - **gentle-shell profiles:** compare what each routing profile really costs, by role and by kind of task.
+- **Agents:** the same task class (inline work against work with an ODD document) compared across Claude Code, gentle-shell, OpenCode and Codex, with the class derived from your data and correctable per session.
+- **Tools:** calls, errors, duration, tokens and cost per tool, with canonical names so `Read` and `exec` can be compared, and turn-level figures flagged as overlapping instead of silently summed.
 - **Git insights:** tokens per commit, per PR, and sessions that never shipped.
 - **SQL console:** query the local DuckDB warehouse and keep the queries you use.
 - **Reports and alerts:** a weekly report and a monthly «wrapped» in markdown, and a message when a quota window crosses a threshold you set.
@@ -173,9 +175,39 @@ The Session view backend (spec §7.1): metrics only, no message content. Both en
 #### `GET /api/sessions/:id`
 
 - `id` must be a stored record id (`<sha256>:session:<sha256>`, lowercase hex); anything else returns 400 `{"error":"invalid session id"}` before any database read, and an unknown id returns 404 `{"error":"session not found"}`.
-- Returns `session` (the list item shape, with stats over every turn of the session), `turns` in `idx` order (`idx`, `role`, `ts`, `model`, `provider`, `effort`, `isCompaction`, `tokens` or `null` without usage, `contextTokens`, per-turn `costs.reported`/`costs.computed` or `null` when unknown, and `tools` with `tool`, `status`, `durationMs`), `parent` (`{ id, agent }`, `agent` null when the parent was never ingested), `children` (`id`, `agent`, `startedAt` and their stats) and `commits` the session's turns are attributed to (`repo` name, short `sha`, `subject`, `authoredAt`, `additions`, `deletions`, and `tokens` of this session's turns), one per sha, oldest first.
+- Returns `session` (the list item shape, with stats over every turn of the session), `taskClass` (`{ value, source }`: `value` is `feature`, `inline` or `unknown`, `source` is `derived` or `corrected`, spec §7.3), `turns` in `idx` order (`idx`, `role`, `ts`, `model`, `provider`, `effort`, `isCompaction`, `tokens` or `null` without usage, `contextTokens`, per-turn `costs.reported`/`costs.computed` or `null` when unknown, and `tools` with `tool`, `status`, `durationMs`), `parent` (`{ id, agent }`, `agent` null when the parent was never ingested), `children` (`id`, `agent`, `startedAt` and their stats) and `commits` the session's turns are attributed to (`repo` name, short `sha`, `subject`, `authoredAt`, `additions`, `deletions`, and `tokens` of this session's turns), one per sha, oldest first.
 - `contextTokens` = input + cache read + cache write tokens: the prompt the model received according to reported usage, `null` when the turn has no usage. The UI plots it as an estimate, with compaction turns marked, and lists the associated commits with their +/− line counts (diffs themselves are not stored).
 - Unsafe aggregates or database failures on either endpoint return 500 `{"error":"sessions unavailable"}`.
+
+#### `PUT /api/sessions/:id/task-class`
+
+- Corrects the task class a session derived on its own (spec §7.3). Body is strict JSON with exactly one key, `{"taskClass":"feature"|"inline"|null}`, bounded to 1 KiB and behind the same loopback-Origin and content-type guards as the other writes. `null` clears the correction and the derived class takes over again; `unknown` is never accepted, because it means the data cannot tell and is not the human's verdict either.
+- Returns `{ sessionId, taskClass, source }`. `400` `{"error":"invalid task class"}` for a malformed, oversized or out-of-vocabulary body, `400` `{"error":"invalid session id"}` for an id that is not a stored record id, `404` `{"error":"session not found"}`, `500` `{"error":"sessions unavailable"}`.
+- Corrections live in `session_task_classes` (migration 010) and ingestion never rewrites them.
+
+### Agents and tools
+
+The Agents and Tools views (spec §7.1.6, §7.1.8, §7.3). Two endpoints, both read-only, behind the Host guard, with `Cache-Control: no-store` and the Summary period rules (`from`/`to`, UTC, inclusive `from`, exclusive `to`, default rolling seven days). Types: `apps/cli/src/tools/contract.ts` and `apps/cli/src/agents/contract.ts`.
+
+**Canonical tool names.** `data/tools.json` maps the raw name each adapter stores (`Read`, `read`, `exec`, `execute`, `shell`, `spawn_agent`…) to a canonical id (`read`, `bash`, `edit`, `grep`, `list`, `task`). Only names that an adapter of this repository really parses may appear as aliases, and a test fails if one is invented; a raw name without an alias falls back to its lowercase form instead of disappearing. The Tools view and the Explorer `tool` dimension both group by the canonical id, and the raw name stays visible per agent to audit the mapping. Edit the file to add a name, never the code.
+
+**Task class.** Derived per session: `feature` when a turn of the session is attributed to a commit or the session spawned subagents, `inline` when the session has a resolved repository and neither of those, `unknown` when there is no resolved repository to judge by. A correction per session wins over the derivation and survives re-ingestion; both endpoints always report the `source`.
+
+#### `GET /api/tools?from&to`
+
+- Per canonical tool: `calls`, `errors`, `errorStatusKnown`, `turns`, `sharedTurns`, `durationKnownMs`, `durationAvgKnownMs`, `tokens` (four categories and `total`), `computedCostUsd`/`reportedCostUsd` with `costKnownTurns`/`costUnknownTurns`, plus `rawNames`.
+- `calls`, `errors` and the durations are per call. `turns`, `tokens` and the costs belong to the turns that used the tool, so **they overlap between rows**: a turn using three tools counts and costs in all three, and the rows must never be added up. `sharedTurns` counts the turns where the tool was one of two or more.
+- `errorStatusKnown` is false for a tool used by an agent whose adapter does not record tool errors — today Codex, which stores every call as `ok` — and the UI renders that as unknown, never as 0 %.
+- The payload also carries `daily` (`day`, `tool`, `tokens` of the turns of that day, for the pace chart) and `byAgent` (`agent`, `rawName`, `tool`, `calls`, `errors`, `errorStatusKnown`) for the raw-name audit.
+- A name without an alias keeps its lowercase form, so `Write` and `Glob` appear as `write` and `glob` and `WebSearch` never merges with `WebFetch`. Adding a name means editing `data/tools.json`, never the code.
+- `400` `{"error":"invalid tools period"}`, `500` `{"error":"tools unavailable"}`.
+
+#### `GET /api/agents?from&to`
+
+- Returns one row per (task class, source, agent) with `sessions`, `turns`, `tokens`, `computedCostUsd`/`reportedCostUsd` and `cacheHitRatio`, plus `classes` and a `totals` block counting derived and corrected sessions, so a comparison can show what was inferred apart from what you corrected.
+- `400` `{"error":"invalid agents period"}`, `500` `{"error":"agents unavailable"}`.
+- Known limits, documented rather than hidden: `tool_calls` stores no timestamp, so the per-tool pace is daily (read from the turn) and not hourly; tokens and cost per tool stay turn-level until an adapter records them per call; gentle-shell's per-subagent tool calls are still dropped by that adapter, so they never reach these figures.
+- **Tool filters take canonical names.** In `POST /api/explorer/query`, `in ["bash"]` matches a stored `exec` and `in ["exec"]` matches nothing, because the dimension compares canonical ids. A saved view that stored a raw name therefore returns no rows; none does today, and the `tool-usage` preset in `data/views/` now renders canonical groups (206 raw groups against 198 canonical ones on the reference data).
 
 ### Subscriptions, quotas and calibrations
 
@@ -294,7 +326,7 @@ Contributions are welcome once the first milestone lands. Read [`AGENTS.md`](AGE
 
 ## License
 
-To be decided.
+[MIT](LICENSE) © Pedro Nieto Méndez.
 
 ---
 

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { WindowKindSchema } from "../schema/tables";
@@ -109,10 +110,59 @@ function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+/** Canonical tool id: lowercase, stable and safe to use as a group value (spec §7.3). */
+const TOOL_ID = /^[a-z][a-z0-9_-]{0,63}$/;
+
+const ToolEntrySchema = z.strictObject({
+  id: z.string().regex(TOOL_ID),
+  // Every raw name the adapters of this repository emit for this tool; never invented.
+  aliases: z.array(z.string().min(1)).min(1),
+});
+
+/**
+ * `data/tools.json`: raw tool names of every agent mapped to one canonical id (spec §7.3). Matching
+ * is case-insensitive, so an alias is unique file-wide ignoring case: two tools claiming the same
+ * raw name would make the resolution ambiguous. A raw name without an alias degrades to its
+ * lowercase form instead of disappearing.
+ */
+export const ToolCatalogueSchema = z
+  .strictObject({ version: z.literal(1), tools: z.array(ToolEntrySchema) })
+  .superRefine((file, ctx) => {
+    const ids = new Set<string>();
+    const aliases = new Set<string>();
+    for (const tool of file.tools) {
+      if (ids.has(tool.id)) {
+        ctx.addIssue({ code: "custom", message: `duplicate tool id ${tool.id}` });
+      }
+      ids.add(tool.id);
+      for (const alias of tool.aliases) {
+        const key = alias.toLowerCase();
+        if (aliases.has(key)) {
+          ctx.addIssue({ code: "custom", message: `duplicate alias ${key}` });
+        }
+        aliases.add(key);
+      }
+    }
+  });
+export type ToolCatalogue = z.infer<typeof ToolCatalogueSchema>;
+
 export function loadPricing(path = `${DATA_DIR}/pricing.json`): PricingFile {
   return PricingFileSchema.parse(readJson(path));
 }
 
 export function loadSubscriptions(path = `${DATA_DIR}/subscriptions.json`): SubscriptionsFile {
   return SubscriptionsFileSchema.parse(readJson(path));
+}
+
+export function loadToolCatalogue(path = join(DATA_DIR, "tools.json")): ToolCatalogue {
+  return ToolCatalogueSchema.parse(readJson(path));
+}
+
+/** Canonical id of a raw tool name: its alias, case-insensitively, else the name lowercased. */
+export function canonicalTool(catalogue: ToolCatalogue, raw: string): string {
+  const name = raw.toLowerCase();
+  for (const tool of catalogue.tools) {
+    if (tool.aliases.some((alias) => alias.toLowerCase() === name)) return tool.id;
+  }
+  return name;
 }

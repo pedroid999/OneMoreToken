@@ -1,6 +1,6 @@
 {
   "name": "@omt/core",
-  "version": "0.0.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "Schema, migrations, pricing, quota windows, profile attribution",

@@ -1,0 +1,61 @@
+/* Tools view (spec §7.1.8, §7.3). Design tokens only (spec §8.2). */
+
+.tools__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.tools .panel,
+.tools .state {
+  margin-top: var(--space-6);
+}
+
+.tools__muted {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.tools__headline {
+  margin: var(--space-4) 0 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.tools__warning {
+  margin: var(--space-2) 0 0;
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+}
+
+.tools__chart {
+  overflow-x: auto;
+}
+
+.tools__table-wrap {
+  overflow-x: auto;
+}
+
+.tools__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tools__table th,
+.tools__table td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-thin) solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+}
+
+.tools__table thead th {
+  color: var(--color-fg-muted);
+}
+
+.tools__table [data-numeric="true"] {
+  text-align: end;
+}

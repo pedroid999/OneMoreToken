@@ -12,6 +12,27 @@
   margin: 0 0 var(--space-4);
 }
 
+/* Heading row of one session, with its task class control (spec §7.3, S2). */
+.session__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-6);
+}
+
+.session__task-class {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.session__task-class-value {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
 .session .panel + .panel {
   margin-top: var(--space-6);
 }
