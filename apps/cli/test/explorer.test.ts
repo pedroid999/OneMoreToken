@@ -260,6 +260,52 @@ describe("POST /api/explorer/query dimensions (S7, L16 dimensions)", () => {
     expect(agents.overlapping).toBe(false);
   });
 
+  it("groups the tool dimension by canonical name (spec §7.3, phase 5 T5)", async () => {
+    // `Read` and `read` are the same tool, `exec` is `bash`, and a turn still counts once per
+    // distinct canonical tool whatever spelling it stored.
+    await turn(
+      "t5",
+      "s1",
+      from,
+      "m-a",
+      "high",
+      [50, 0, 0, 0, null, null],
+      ["Read", "exec", "Read"],
+    );
+    expect(await rows({ metrics: ["turns"], dimensions: ["tool"] })).toEqual([
+      { tool: "bash", turns: 1 },
+      { tool: "edit", turns: 1 },
+      { tool: "read", turns: 3 },
+      { tool: null, turns: 1 },
+    ]);
+    // A raw name with no alias degrades to its lowercase form instead of disappearing.
+    await turn("t6", "s1", from, "m-a", "high", [1, 0, 0, 0, null, null], ["Glob"]);
+    expect(await rows({ dimensions: ["tool"] })).toContainEqual({ tool: "glob", turns: 1 });
+  });
+
+  it("filters the tool dimension by canonical name, grouped or not", async () => {
+    await turn("t5", "s1", from, "m-a", "high", [50, 0, 0, 0, null, null], ["exec"]);
+    expect(
+      await rows({
+        dimensions: ["tool"],
+        filters: [{ dimension: "tool", op: "in", values: ["bash"] }],
+      }),
+    ).toEqual([{ tool: "bash", turns: 1 }]);
+    expect(
+      await rows({
+        metrics: ["turns"],
+        filters: [{ dimension: "tool", op: "in", values: ["bash"] }],
+      }),
+    ).toEqual([{ turns: 1 }]);
+    expect(
+      await rows({
+        metrics: ["turns"],
+        filters: [{ dimension: "tool", op: "notIn", values: ["bash"] }],
+      }),
+      // t1 (read + edit), t2 (no tool call) and t3 (read) have no `bash` call.
+    ).toEqual([{ turns: 3 }]);
+  });
+
   it("crosses two dimensions", async () => {
     expect(await rows({ dimensions: ["agent", "tool"] })).toEqual([
       { agent: "claude-code", tool: "edit", turns: 1 },

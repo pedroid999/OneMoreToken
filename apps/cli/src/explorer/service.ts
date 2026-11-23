@@ -6,14 +6,17 @@ import {
   ExplorerQuerySchema,
   hashContent,
   loadPricing,
+  loadToolCatalogue,
   type PricingFile,
   PricingFileSchema,
   type SqlParams,
+  type ToolCatalogue,
   TURN_ROLE_SQL,
 } from "@omt/core";
 import { withDatabase } from "../db-queue";
 import type { SummaryPeriod } from "../summary/contract";
 import { summaryPeriod } from "../summary/service";
+import { type CanonicalTools, canonicalTools } from "../tools/canonical";
 import type { ExplorerColumn, ExplorerResponse, ExplorerValue } from "./contract";
 
 export const DEFAULT_EXPLORER_LIMIT = 1000;
@@ -45,7 +48,8 @@ const DIMENSION_SQL: Record<ExplorerDimension, string> = {
   effort: "b.effort",
   repo: "b.repo",
   branch: "b.branch",
-  tool: "tc.tool",
+  // Grouped by canonical name (spec §7.3, S4): `Read`, `read` and `exec` are the same idea.
+  tool: "tc.canonical",
   day: `strftime(${UTC}, '%Y-%m-%d')`,
   hourOfDay: `CAST(hour(${UTC}) AS INTEGER)`,
   dayOfWeek: `CAST(isodow(${UTC}) AS INTEGER)`,
@@ -71,14 +75,21 @@ function dimensionValue(value: unknown): ExplorerValue {
 }
 
 /** Values are always bound; filters on tool select turns (EXISTS) unless tool is grouped. */
-function filterSql(filter: ExplorerFilter, groupedByTool: boolean, params: SqlParams): string {
+function filterSql(
+  filter: ExplorerFilter,
+  groupedByTool: boolean,
+  params: SqlParams,
+  canon: CanonicalTools | null,
+): string {
   const placeholders = filter.values.map((value) => {
     params.push(value);
     return `$${params.length}`;
   });
   const list = `(${placeholders.join(", ")})`;
   if (filter.dimension === "tool" && !groupedByTool) {
-    const exists = `EXISTS (SELECT 1 FROM tool_calls x WHERE x.turn_id = b.turn_id AND x.tool IN ${list})`;
+    const canonical = canon?.of("x.tool") ?? "lower(x.tool)";
+    const exists = `EXISTS (SELECT 1 FROM tool_calls x ${canon?.join ?? ""}
+      WHERE x.turn_id = b.turn_id AND ${canonical} IN ${list})`;
     return filter.op === "in" ? exists : `NOT ${exists}`;
   }
   const expression = DIMENSION_SQL[filter.dimension];
@@ -92,12 +103,18 @@ export function readExplorer(
   db: Database,
   { query, period }: ExplorerRequest,
   pricing?: PricingFile,
+  options: { catalogue?: ToolCatalogue; cataloguePath?: string } = {},
 ): Promise<ExplorerResponse> {
   return withDatabase(db, async () => {
     const catalog = PricingFileSchema.parse(pricing ?? loadPricing());
     const params: SqlParams = [period.from, period.to, hashContent(JSON.stringify(catalog))];
     const groupedByTool = query.dimensions.includes("tool");
-    const where = query.filters.map((filter) => filterSql(filter, groupedByTool, params));
+    // The catalogue is only needed when the tool dimension appears, grouped or filtered.
+    const canon =
+      query.dimensions.includes("tool") || query.filters.some((f) => f.dimension === "tool")
+        ? canonicalTools(options.catalogue ?? loadToolCatalogue(options.cataloguePath), params)
+        : null;
+    const where = query.filters.map((filter) => filterSql(filter, groupedByTool, params, canon));
     const dimensions = query.dimensions.map((d, i) => `${DIMENSION_SQL[d]} AS d${i},`);
     const positions = query.dimensions.map((_, i) => `${i + 1}`);
     const limit = query.limit ?? DEFAULT_EXPLORER_LIMIT;
@@ -108,7 +125,7 @@ export function readExplorer(
     const byRole = used.has("role");
     // Computed cost counts only when priced with the current catalog, as in the Summary.
     const rows = await db.all(
-      `WITH b AS (
+      `WITH ${canon?.cte ?? ""}b AS (
         SELECT t.id AS turn_id, t.session_id, t.ts, t.model, t.provider, t.effort,
           s.agent, s.repo, s.branch, u.turn_id IS NOT NULL AS has_usage,
           u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens,
@@ -138,7 +155,7 @@ export function readExplorer(
         count(CASE WHEN b.has_usage THEN 1 END) AS usage_turns,
         count(*) AS turns, count(DISTINCT b.session_id) AS sessions
       FROM b
-      ${groupedByTool ? "LEFT JOIN (SELECT DISTINCT turn_id, tool FROM tool_calls) tc ON tc.turn_id = b.turn_id" : ""}
+      ${groupedByTool ? `LEFT JOIN (SELECT DISTINCT x.turn_id, ${canon?.of("x.tool") ?? "lower(x.tool)"} AS canonical FROM tool_calls x ${canon?.join ?? ""}) tc ON tc.turn_id = b.turn_id` : ""}
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
       ${positions.length ? `GROUP BY ${positions.join(", ")}` : ""}
       ${positions.length ? `ORDER BY ${positions.map((p) => `${p} ASC NULLS LAST`).join(", ")}` : ""}
