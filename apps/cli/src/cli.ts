@@ -20,6 +20,7 @@ import {
 } from "./options";
 import { startReportScheduler } from "./reports/scheduler";
 import { type RunningServer, startServer, waitForSignal } from "./server";
+import { startCommand } from "./start";
 import { defaultWebDist } from "./web/static";
 
 export interface CliIo {
@@ -32,6 +33,8 @@ export interface CliDeps {
   /** Resolves when `omt serve` should stop. Defaults to SIGINT/SIGTERM. */
   waitForShutdown?(server: RunningServer): Promise<void>;
   fetch?: IngestFetch;
+  /** Opens the dashboard browser for `omt start`; tests inject a stub. */
+  openBrowser?(url: string): Promise<void>;
 }
 
 const EXIT_OK = 0;
@@ -45,9 +48,14 @@ export const USAGE = `One More Token: local dashboard for AI coding agent usage.
 Usage: omt <command> [options]
 
 Commands:
+  start     Ingest local agent metrics, serve the dashboard and open it in the browser
   serve     Open the database, apply migrations and start the dashboard API
   ingest    Ask the running server to ingest local agent metrics
   watch     Ingest continuously while serving (phase 1)
+
+Options for start:
+  --no-open       Do not open the browser after the dashboard is ready
+  (also accepts the serve options below)
 
 Options for serve:
   --port <n>      Port to listen on (default ${DEFAULT_PORT}; 0 picks a free port)
@@ -108,6 +116,11 @@ export async function run(
   switch (command) {
     case "serve":
       return serveCommand(args, io, deps);
+    case "start":
+      return startCommand(args, io, {
+        waitForShutdown: deps.waitForShutdown ?? (() => waitForSignal()),
+        ...(deps.openBrowser ? { openBrowser: deps.openBrowser } : {}),
+      });
     case "ingest":
       return ingestCommand(args, io, deps);
     case "watch":

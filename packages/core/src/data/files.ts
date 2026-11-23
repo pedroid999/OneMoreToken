@@ -158,7 +158,9 @@ export function loadPricing(path = join(resolveDataDir(), "pricing.json")): Pric
   return PricingFileSchema.parse(readJson(path));
 }
 
-export function loadSubscriptions(path = join(resolveDataDir(), "subscriptions.json")): SubscriptionsFile {
+export function loadSubscriptions(
+  path = join(resolveDataDir(), "subscriptions.json"),
+): SubscriptionsFile {
   return SubscriptionsFileSchema.parse(readJson(path));
 }
 

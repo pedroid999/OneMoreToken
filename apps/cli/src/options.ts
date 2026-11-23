@@ -27,6 +27,8 @@ export interface ServeOptions {
   /** Telegram credentials: without both of them no channel exists and nothing leaves the machine. */
   telegramBotToken?: string | undefined;
   telegramChatId?: string | undefined;
+  /** `--no-open`: skip opening the browser (omt start). */
+  noOpen?: boolean | undefined;
   help: boolean;
 }
 
@@ -87,6 +89,7 @@ export function parseServeOptions(
     "alert-interval-ms"?: string | undefined;
     "telegram-bot-token"?: string | undefined;
     "telegram-chat-id"?: string | undefined;
+    "no-open"?: boolean | undefined;
   };
   let help = false;
   try {
@@ -104,6 +107,7 @@ export function parseServeOptions(
         "alert-interval-ms": { type: "string" },
         "telegram-bot-token": { type: "string" },
         "telegram-chat-id": { type: "string" },
+        "no-open": { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -174,6 +178,7 @@ export function parseServeOptions(
       alertIntervalMs,
       telegramBotToken: credentials(values["telegram-bot-token"], "OMT_TELEGRAM_BOT_TOKEN"),
       telegramChatId: credentials(values["telegram-chat-id"], "OMT_TELEGRAM_CHAT_ID"),
+      noOpen: values["no-open"] ?? false,
       help,
     },
   };

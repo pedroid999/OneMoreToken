@@ -19,7 +19,6 @@ import { isJsonRequest, readBoundedJson } from "./explorer/http";
 import { parseExplorerQuery, readExplorer } from "./explorer/service";
 import { readGit } from "./git/service";
 import { readIngestJson, safeIngestOrigin } from "./ingest/http";
-import { missingDistPage, readWebFile } from "./web/static";
 import { type IngestServiceOptions, ingestSessions } from "./ingest/service";
 import { INVALID_INGEST_OPTIONS, validateIngestOptions } from "./ingest-options";
 import {
@@ -50,6 +49,7 @@ import { createSavedQueryStore, SavedQueryError } from "./sql/views";
 import { readSummary, summaryPeriod } from "./summary/service";
 import { readTools } from "./tools/service";
 import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
+import { missingDistPage, readWebFile } from "./web/static";
 
 export interface Health {
   status: "ok";

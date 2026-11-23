@@ -41,6 +41,7 @@ describe("parseServeOptions", () => {
         reportIntervalMs: 3_600_000,
         alertsConfigPath: join(HOME, ".config", "one-more-token", "alerts.json"),
         alertIntervalMs: 3_600_000,
+        noOpen: false,
         help: false,
       },
     });

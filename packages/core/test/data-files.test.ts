@@ -379,9 +379,14 @@ describe("data directory resolution", () => {
     const { resolveDataDir } = await import("../src/data/files");
     const fake = mkdtempSync(join(tmpdir(), "omt-data-"));
     try {
-      writeFileSync(join(fake, "pricing.json"), readFileSync(join(DATA_DIR, "pricing.json"), "utf8"));
+      writeFileSync(
+        join(fake, "pricing.json"),
+        readFileSync(join(DATA_DIR, "pricing.json"), "utf8"),
+      );
       expect(resolveDataDir({ OMT_DATA_DIR: fake })).toBe(fake);
-      expect(() => loadPricing(join(resolveDataDir({ OMT_DATA_DIR: fake }), "pricing.json"))).not.toThrow();
+      expect(() =>
+        loadPricing(join(resolveDataDir({ OMT_DATA_DIR: fake }), "pricing.json")),
+      ).not.toThrow();
     } finally {
       rmSync(fake, { recursive: true, force: true });
     }
