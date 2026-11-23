@@ -403,7 +403,7 @@ Deudas conocidas de la fase 5, documentadas y fuera de su alcance:
 
 ## 13. Preguntas abiertas
 
-0. ¿Qué licencia open source? (MIT encaja con el ecosistema de Gentle-AI y gentle-shell; decidir antes del primer release.)
+0. ~~¿Qué licencia open source?~~ **Decidida: MIT**, con el texto en `LICENSE`; el release `v0.5.0` ya la publica.
 
 1. ¿Dónde persiste gentle-shell el perfil activo por sesión y el uso por subagente? (bloquea §6)
 2. ¿Formato exacto de las sesiones de Pi y de la home propia de gentle-shell?

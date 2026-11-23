@@ -1,6 +1,6 @@
 {
   "name": "one-more-token",
-  "version": "0.0.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.7.0",
@@ -22,5 +22,6 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
-  }
+  },
+  "license": "MIT"
 }

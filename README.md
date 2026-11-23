@@ -326,7 +326,7 @@ Contributions are welcome once the first milestone lands. Read [`AGENTS.md`](AGE
 
 ## License
 
-To be decided.
+[MIT](LICENSE) © Pedro Nieto Méndez.
 
 ---
 
