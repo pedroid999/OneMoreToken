@@ -156,3 +156,7 @@ apps/cli/web-dist/
 apps/cli/data/
 apps/cli/migrations/
 apps/cli/dist/
+
+# npm publish staging
+apps/publish-omt/
+publish-omt/

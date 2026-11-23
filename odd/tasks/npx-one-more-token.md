@@ -25,3 +25,11 @@ T5: Publish to npm (user decision at release time; push/PR/publish remain the us
 
 L1 (verbatim): "Vale , ahora queremos una versión de OneMoreToken, la definitiva para la que solo haga falta ejecutar un npx OneMoreToken que hará una nueva ingesta y cargará a aplicación en el navegador"
 L2: User chose: publish to npm as one-more-token; command does everything + guided first run.
+## Log (appendix)
+
+L3: Work completed on branch feat/npx-one-more-token, commits: 84f6652 (T1), dc66c38 (T2),
+a918318 (T3), f1c25e7 (T4). Smoke test: node apps/cli/dist/main.js start ingests the real
+home sessions (748 files), serves /api/health, /, SPA routes and /api/summary (200s).
+Publishable package verified with publishConfig (name one-more-token, bin omt,
+dependencies @duckdb/node-api only). Slice note: sizes exceeded 400 lines in T3/T4;
+kept one commit per unit anyway (T4 includes packaging config + README).
