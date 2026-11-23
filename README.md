@@ -199,6 +199,7 @@ The Agents and Tools views (spec §7.1.6, §7.1.8, §7.3). Two endpoints, both r
 - `calls`, `errors` and the durations are per call. `turns`, `tokens` and the costs belong to the turns that used the tool, so **they overlap between rows**: a turn using three tools counts and costs in all three, and the rows must never be added up. `sharedTurns` counts the turns where the tool was one of two or more.
 - `errorStatusKnown` is false for a tool used by an agent whose adapter does not record tool errors — today Codex, which stores every call as `ok` — and the UI renders that as unknown, never as 0 %.
 - The payload also carries `daily` (`day`, `tool`, `tokens` of the turns of that day, for the pace chart) and `byAgent` (`agent`, `rawName`, `tool`, `calls`, `errors`, `errorStatusKnown`) for the raw-name audit.
+- A name without an alias keeps its lowercase form, so `Write` and `Glob` appear as `write` and `glob` and `WebSearch` never merges with `WebFetch`. Adding a name means editing `data/tools.json`, never the code.
 - `400` `{"error":"invalid tools period"}`, `500` `{"error":"tools unavailable"}`.
 
 #### `GET /api/agents?from&to`
@@ -206,6 +207,7 @@ The Agents and Tools views (spec §7.1.6, §7.1.8, §7.3). Two endpoints, both r
 - Returns one row per (task class, source, agent) with `sessions`, `turns`, `tokens`, `computedCostUsd`/`reportedCostUsd` and `cacheHitRatio`, plus `classes` and a `totals` block counting derived and corrected sessions, so a comparison can show what was inferred apart from what you corrected.
 - `400` `{"error":"invalid agents period"}`, `500` `{"error":"agents unavailable"}`.
 - Known limits, documented rather than hidden: `tool_calls` stores no timestamp, so the per-tool pace is daily (read from the turn) and not hourly; tokens and cost per tool stay turn-level until an adapter records them per call; gentle-shell's per-subagent tool calls are still dropped by that adapter, so they never reach these figures.
+- **Tool filters take canonical names.** In `POST /api/explorer/query`, `in ["bash"]` matches a stored `exec` and `in ["exec"]` matches nothing, because the dimension compares canonical ids. A saved view that stored a raw name therefore returns no rows; none does today, and the `tool-usage` preset in `data/views/` now renders canonical groups (206 raw groups against 198 canonical ones on the reference data).
 
 ### Subscriptions, quotas and calibrations
 
