@@ -34,7 +34,7 @@ describe("omt help", () => {
   it("prints usage to stdout and exits 0 with --help", async () => {
     const c = capture();
     expect(await run(["--help"], c.io)).toBe(0);
-    expect(c.out()).toContain("Usage: omt <command> [options]");
+    expect(c.out()).toContain("Usage: omt [<command>] [options]");
     expect(c.out()).toContain("serve");
     expect(c.out()).toContain("ingest");
     expect(c.out()).toContain("watch");
@@ -42,16 +42,13 @@ describe("omt help", () => {
     expect(c.err()).toBe("");
   });
 
-  it("prints the same usage with -h and with no command", async () => {
+  it("prints the same usage with -h as with --help", async () => {
     const help = capture();
     await run(["--help"], help.io);
     const short = capture();
-    const none = capture();
     expect(await run(["-h"], short.io)).toBe(0);
-    expect(await run([], none.io)).toBe(0);
     expect(short.out()).toBe(help.out());
-    expect(none.out()).toBe(help.out());
-    expect(none.err()).toBe("");
+    expect(short.err()).toBe("");
   });
 
   it("prints usage for serve --help without starting a server", async () => {
@@ -247,7 +244,7 @@ describe("omt errors", () => {
     const c = capture();
     expect(await run(["--nope"], c.io)).toBe(1);
     expect(c.out()).toBe("");
-    expect(c.err()).toBe(`omt: unknown option "--nope"\n${HELP_HINT}`);
+    expect(c.err()).toBe(`omt start: unknown option "--nope"\n`);
   });
 
   it("rejects an unknown serve option with exit 1", async () => {

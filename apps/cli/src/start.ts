@@ -1,7 +1,7 @@
 import { exec } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   type Database,
   defaultProfilesPath,
@@ -12,7 +12,7 @@ import {
 } from "@omt/core";
 import { createApp } from "./app";
 import { defaultIngestRoots, ingestSessions } from "./ingest/service";
-import { type ServeOptions } from "./options";
+import type { ServeOptions } from "./options";
 import { type RunningServer, startServer, waitForSignal } from "./server";
 import { defaultWebDist } from "./web/static";
 
@@ -103,6 +103,8 @@ export async function startCommand(
   let db: Database | undefined;
   let server: RunningServer | undefined;
   try {
+    // A fresh machine has no data home yet: create it before opening DuckDB.
+    if (options.db !== ":memory:") mkdirSync(dirname(options.db), { recursive: true });
     db = await openDatabase(options.db);
     await migrate(db);
     // Discovery honors the injected env (hermetic tests); profiles load only for the real runtime.

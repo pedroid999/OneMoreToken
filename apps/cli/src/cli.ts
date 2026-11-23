@@ -45,7 +45,10 @@ const HELP_HINT = "Run `omt --help` for usage.";
 
 export const USAGE = `One More Token: local dashboard for AI coding agent usage.
 
-Usage: omt <command> [options]
+Usage: omt [<command>] [options]
+
+With no command, omt runs "start": ingest local metrics, serve the dashboard
+and open it in the browser.
 
 Commands:
   start     Ingest local agent metrics, serve the dashboard and open it in the browser
@@ -105,22 +108,26 @@ export async function run(
 ): Promise<number> {
   const [command, ...args] = argv;
 
-  if (command === undefined || command === "--help" || command === "-h") {
+  // No subcommand means the product's one command: ingest, serve and open the dashboard.
+  // Flags without a subcommand (`omt --port 8080`) belong to that same command.
+  if (command === undefined) return start([], io, deps);
+  if (command === "--help" || command === "-h") {
     io.stdout(USAGE);
     return EXIT_OK;
   }
   if (command.startsWith("-")) {
-    return usageError(io, "omt", `unknown option "${command}"`);
+    if (argv.includes("--help") || argv.includes("-h")) {
+      io.stdout(USAGE);
+      return EXIT_OK;
+    }
+    return start(argv, io, deps);
   }
 
   switch (command) {
     case "serve":
       return serveCommand(args, io, deps);
     case "start":
-      return startCommand(args, io, {
-        waitForShutdown: deps.waitForShutdown ?? (() => waitForSignal()),
-        ...(deps.openBrowser ? { openBrowser: deps.openBrowser } : {}),
-      });
+      return start(args, io, deps);
     case "ingest":
       return ingestCommand(args, io, deps);
     case "watch":
@@ -136,6 +143,14 @@ export async function run(
 function usageError(io: CliIo, prefix: string, message: string): number {
   io.stderr(`${prefix}: ${message}\n${HELP_HINT}\n`);
   return EXIT_USAGE;
+}
+
+/** Shared wiring for `omt start` and a bare `omt` invocation. */
+function start(args: string[], io: CliIo, deps: CliDeps): Promise<number> {
+  return startCommand(args, io, {
+    waitForShutdown: deps.waitForShutdown ?? (() => waitForSignal()),
+    ...(deps.openBrowser ? { openBrowser: deps.openBrowser } : {}),
+  });
 }
 
 async function ingestCommand(args: string[], io: CliIo, deps: CliDeps): Promise<number> {

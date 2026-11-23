@@ -93,6 +93,32 @@ describe("omt start", () => {
     expect(opened[0]).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/?$/);
   });
 
+  it("starts the dashboard when invoked with no subcommand", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omt-bare-"));
+    dirs.push(dir);
+    const home = join(dir, "home");
+    mkdirSync(join(home, ".config"), { recursive: true });
+    mkdirSync(join(home, ".local", "share"), { recursive: true });
+    const c = capture({
+      HOME: home,
+      XDG_CONFIG_HOME: join(home, ".config"),
+      XDG_DATA_HOME: join(home, ".local", "share"),
+    });
+    const opened: string[] = [];
+
+    const code = await run([], c.io, {
+      async waitForShutdown() {},
+      openBrowser: async (url) => {
+        opened.push(url);
+      },
+    });
+
+    expect(code).toBe(0);
+    expect(c.out()).toContain("omt start: One More Token");
+    expect(c.out()).not.toContain("Usage: omt <command> [options]");
+    expect(opened).toHaveLength(1);
+  });
+
   it("rejects unknown options like serve does", async () => {
     const c = capture();
     const code = await run(["start", "--nope"], c.io);
