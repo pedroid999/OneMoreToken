@@ -6,7 +6,16 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/node_modules", "!**/dist", "!.atl", "!**/*.generated.css"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/web-dist",
+      "!**/migrations",
+      "!apps/cli/data",
+      "!.atl",
+      "!**/*.generated.css"
+    ]
   },
   "formatter": {
     "enabled": true,

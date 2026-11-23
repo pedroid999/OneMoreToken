@@ -1,6 +1,6 @@
 {
   "name": "one-more-token",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.7.0",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter @omt/web --filter @omt/cli run dev",
+    "build:cli": "pnpm --filter @omt/cli build",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "typecheck": "pnpm -r --parallel typecheck",
     "lint": "biome check .",

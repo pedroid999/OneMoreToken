@@ -49,6 +49,7 @@ import { createSavedQueryStore, SavedQueryError } from "./sql/views";
 import { readSummary, summaryPeriod } from "./summary/service";
 import { readTools } from "./tools/service";
 import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
+import { missingDistPage, readWebFile } from "./web/static";
 
 export interface Health {
   status: "ok";
@@ -72,6 +73,8 @@ export interface AppOptions {
   quotas?: { now?: () => number };
   /** Canonical tool catalogue; tests pass a temporary file instead of data/tools.json. */
   tools?: { cataloguePath?: string };
+  /** Built dashboard (apps/web/dist) served for non-API paths; tests pass a temporary directory. */
+  web?: { dist?: string | undefined };
 }
 
 /** Explorer bodies are small: 2 dimensions, 4 metrics, at most 10 filters of 50 values. */
@@ -469,6 +472,15 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
     } catch {
       return c.json({ error: "ingestion failed" }, 500);
     }
+  });
+
+  app.notFound(async (c) => {
+    if (c.req.path.startsWith("/api/") || c.req.path === "/api") {
+      return c.json({ error: "not found" }, 404);
+    }
+    const file = await readWebFile(options.web?.dist, c.req.path);
+    if (file) return c.body(file.body, 200, { "content-type": file.contentType });
+    return c.html(missingDistPage(), 404);
   });
 
   return app;

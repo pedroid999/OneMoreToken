@@ -7,6 +7,14 @@ import { WindowKindSchema } from "../schema/tables";
 // Prices and quota limits are data, not code (spec §4): they live in data/*.json at the repo root.
 export const DATA_DIR = fileURLToPath(new URL("../../../../data", import.meta.url));
 
+/**
+ * Data directory for the current runtime. OMT_DATA_DIR wins (packaged installs point it at the
+ * bundled copy); without it the repo-relative default applies.
+ */
+export function resolveDataDir(env: NodeJS.ProcessEnv = process.env): string {
+  return env.OMT_DATA_DIR ?? DATA_DIR;
+}
+
 const date = z.iso.date();
 const price = z.number().nonnegative();
 
@@ -146,15 +154,17 @@ export const ToolCatalogueSchema = z
   });
 export type ToolCatalogue = z.infer<typeof ToolCatalogueSchema>;
 
-export function loadPricing(path = `${DATA_DIR}/pricing.json`): PricingFile {
+export function loadPricing(path = join(resolveDataDir(), "pricing.json")): PricingFile {
   return PricingFileSchema.parse(readJson(path));
 }
 
-export function loadSubscriptions(path = `${DATA_DIR}/subscriptions.json`): SubscriptionsFile {
+export function loadSubscriptions(
+  path = join(resolveDataDir(), "subscriptions.json"),
+): SubscriptionsFile {
   return SubscriptionsFileSchema.parse(readJson(path));
 }
 
-export function loadToolCatalogue(path = join(DATA_DIR, "tools.json")): ToolCatalogue {
+export function loadToolCatalogue(path = join(resolveDataDir(), "tools.json")): ToolCatalogue {
   return ToolCatalogueSchema.parse(readJson(path));
 }
 

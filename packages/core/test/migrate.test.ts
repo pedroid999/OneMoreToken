@@ -361,3 +361,13 @@ describe("migrate error reporting", () => {
     expect(failure?.cause).toBe(original);
   });
 });
+
+describe("resolveMigrationsDir", () => {
+  it("prefers OMT_MIGRATIONS_DIR and falls back to the repo default", async () => {
+    const { MIGRATIONS_DIR, resolveMigrationsDir } = await import("../src/db/migrate");
+    expect(resolveMigrationsDir({ OMT_MIGRATIONS_DIR: "/tmp/omt-migrations" })).toBe(
+      "/tmp/omt-migrations",
+    );
+    expect(resolveMigrationsDir({})).toBe(MIGRATIONS_DIR);
+  });
+});

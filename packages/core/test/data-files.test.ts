@@ -373,3 +373,27 @@ describe("data/views/*.json (saved view presets)", () => {
     expect(SavedViewSchema.safeParse({ ...view, ...change }).success).toBe(false);
   });
 });
+
+describe("data directory resolution", () => {
+  it("prefers OMT_DATA_DIR over the repo-relative default", async () => {
+    const { resolveDataDir } = await import("../src/data/files");
+    const fake = mkdtempSync(join(tmpdir(), "omt-data-"));
+    try {
+      writeFileSync(
+        join(fake, "pricing.json"),
+        readFileSync(join(DATA_DIR, "pricing.json"), "utf8"),
+      );
+      expect(resolveDataDir({ OMT_DATA_DIR: fake })).toBe(fake);
+      expect(() =>
+        loadPricing(join(resolveDataDir({ OMT_DATA_DIR: fake }), "pricing.json")),
+      ).not.toThrow();
+    } finally {
+      rmSync(fake, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the repo-relative default when the env var is unset", async () => {
+    const { resolveDataDir } = await import("../src/data/files");
+    expect(resolveDataDir({})).toBe(DATA_DIR);
+  });
+});
