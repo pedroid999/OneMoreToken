@@ -6,10 +6,24 @@ Prices, quota limits and design tokens are data, not code (spec §4, §8.2). Edi
 |---|---|---|
 | `pricing.json` | Price per million tokens by model and provider, with `validFrom` / `validTo` dates | `PricingFileSchema` in `packages/core/src/data/files.ts` |
 | `subscriptions.json` | Plans, their quota windows and limits (`usd`, `tokens` or `estimated`). Which plans you pay for lives in your local config (see the README) | `SubscriptionsFileSchema` in the same file |
+| `tools.json` | Canonical tool catalogue: each canonical id with the raw tool names that map to it (spec §7.3) | `ToolCatalogueSchema` in the same file |
 | `theme/` | Design tokens for the Kanagawa themes | see `theme/README.md` |
 | `views/` | Preset Explorer views: query, chart type and Vega-Lite (or Vega) spec, one file per view named `<id>.json` | `SavedViewSchema` in `packages/core/src/data/views.ts` |
 
 `pnpm check` validates every file against its schema.
+
+## Canonical tool catalogue (spec §7.3)
+
+`tools.json` maps the raw tool name each adapter stores to one canonical id, so the Tools view and the Explorer's `tool` dimension can compare `Read`, `read` and `exec` as the same idea:
+
+```json
+{ "version": 1, "tools": [{ "id": "read", "aliases": ["read"] }] }
+```
+
+- Each object is strict: `id` matches `^[a-z][a-z0-9_-]{0,63}$`, `aliases` is non-empty, and an `id` or an alias listed twice is invalid (aliases are compared ignoring case, so `Read` and `read` are the same alias).
+- Resolution is case-insensitive; a raw name with no alias degrades to its own lowercase form instead of disappearing. The raw name stays visible per agent in the Tools view, so the mapping can be audited.
+- **Aliases are collected from what the adapters of this repository actually emit**, never invented: they come from the adapters' fixtures and snapshots (and their parsing code). A test fails when an alias appears in no adapter, and a new raw name from a new agent version is added here before the views can group it.
+- The catalogue is data, not code: adding an alias needs no release. `tool_calls.tool` keeps storing the raw name, so editing the file never needs a re-ingest.
 
 Preset views are versioned and read-only: `name` and `description` are i18n keys (`explorer.presets.<key>.name`), specs never embed data or URLs, and they contain no personal data. Views saved from the UI live outside the repository (see the README).
 

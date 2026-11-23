@@ -195,6 +195,13 @@ export const AlertNotificationSchema = z.object({
   sent_at: timestamp,
 });
 
+export const SessionTaskClassSchema = z.object({
+  session_id: id,
+  /** The corrected class; `unknown` is never a correction, it is the absence of evidence. */
+  task_class: z.enum(["feature", "inline"]),
+  updated_at: timestamp,
+});
+
 export const IngestIssueSchema = z.object({
   id,
   source_id: nullable(id),
@@ -228,6 +235,7 @@ export const TABLE_SCHEMAS = {
   commit_pull_requests: CommitPullRequestSchema,
   turn_commits: TurnCommitSchema,
   alert_notifications: AlertNotificationSchema,
+  session_task_classes: SessionTaskClassSchema,
 } as const;
 
 export type TableName = keyof typeof TABLE_SCHEMAS;

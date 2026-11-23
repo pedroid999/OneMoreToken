@@ -18,9 +18,11 @@ import type {
   SessionList,
   SessionPricing,
   SessionStats,
+  SessionTaskClass,
   SessionToolCall,
   SessionTurn,
 } from "./contract";
+import { readSessionTaskClass } from "./task-class";
 
 export const DEFAULT_SESSIONS_LIMIT = 100;
 export const MAX_SESSIONS_LIMIT = 500;
@@ -317,6 +319,7 @@ export function readSession(
         tokens: numeric(commit.tokens ?? 0),
       }),
     );
-    return { session: item(row, own), turns, parent, children, pricing: info, commits };
+    const taskClass: SessionTaskClass = await readSessionTaskClass(db, id);
+    return { session: item(row, own), turns, parent, children, pricing: info, commits, taskClass };
   });
 }

@@ -1,0 +1,49 @@
+# Phase 5 — Agents and Tools views
+
+Feature doc for spec §7.1.6, §7.1.8 and the new §7.3; branch `feat/phase-5-views` from `develop` `946226e`.
+Read this file up to `## Log` before working; the contract is L3.
+
+## Specs
+
+- **S1** «Definir fase 5 en el spec y construir ambas» — the human's choice for the two §7.1 views that no phase ever delivered.
+- **S2** «Híbrida: derivada y corregible» / «Clasificación automática por defecto, con posibilidad de sobrescribirla por sesión. Lo mejor de ambas y el mayor coste de la fase.» — task class.
+- **S3** «Tokens/coste del turno, con aviso» / «Por herramienta: llamadas, errores, duración exacta, y los tokens/coste de los turnos donde se usó, marcados como del turno y solapados. Sin tocar la ingesta.» — per-tool metrics.
+- **S4** «Normalizar con catálogo en data/» / «Tabla canónica (read, write, edit, bash, grep, glob, task, web…) que mapea los nombres crudos, conservando el original. Permite decir «qué herramientas consumen en exceso» de verdad.» — tool identity.
+- **S5** «No, mostrar «desconocido»» / «La vista marca la tasa de error de Codex como desconocida en vez de 0 %, y queda como deuda documentada. Mantiene la fase pequeña y honesta.» — Codex error status.
+- **S6** spec §7.1.6 verbatim: «**Agentes:** misma clase de tarea en Claude Code, OpenCode y gentle-shell.»
+- **S7** spec §7.1.8 verbatim: «**Herramientas:** por herramienta, llamadas, errores, tiempo, tokens, coste y ritmo de consumo, para distinguir las herramientas eficientes de las que consumen en exceso.»
+
+## Tasks
+
+- T1 (S1, S6, S7) spec §12 phase 5, spec §7.3 and this contract — inline — `docs(odd)`
+- T2 (S4) canonical tool catalogue in `data/` + core loader + canonical resolution — worker A — `feat(core)`
+- T3 (S2, S5) derived task class, correction table (migration 010), override endpoint, error-status capability — worker A — `feat(core)`/`feat(cli)`
+- T4 (S6, S7) `GET /api/tools` and `GET /api/agents` contracts and services — worker A — `feat(cli)`
+- T5 (S4) Explorer `tool` dimension groups by canonical name — worker A — `feat(cli)` (own commit: changes a delivered contract)
+- T6 (S6, S7) Tools view (chart, table, exports) — worker B — `feat(web)`
+- T7 (S6, S2) Agents view (comparison by task class) + per-session correction control — worker B — `feat(web)`
+- T8 checks, independent verifier, native review, PR — parent
+
+## Log
+
+- **L1 (request, verbatim):** «Me dices que el producto está terminado pero estas dos capturas de Agents y Tools no me dicen lo mismo» — the two screenshots show `/agents` and `/tools` rendering the placeholder «This view arrives in phase 2. / Track progress in docs/spec.md, section 12.». The claim was wrong: §12 defines phases 0-4 and never assigned §7.1.6 or §7.1.8, while the routes carry a stale `phase: 2` (`apps/web/src/router.ts`) that the UI repeats.
+
+- **L2 (decisions, verbatim):** S1-S5 above, answered by the human after being shown the gap between spec §7.1 and the data model.
+
+- **L3 (contract, 2026-11-23):** the product rules are spec §7.3 (new) and the phase 5 row of §12. Technical contract:
+
+  **Tool catalogue (S4).** New `data/tools.json`, schema `{ version: 1, tools: [{ id, aliases: string[] }] }`, every object strict: `id` matches `^[a-z][a-z0-9_-]{0,63}$`, `aliases` non-empty and unique file-wide (an alias listed by two tools is invalid), `id` never repeated. Core exposes a Zod schema and `loadToolCatalogue(path = join(DATA_DIR, "tools.json"))` next to `loadPricing`/`loadSubscriptions`, plus `canonicalTool(catalogue, raw)` = the tool whose alias matches case-insensitively, else `raw.toLowerCase()`. **Aliases must be collected from the adapter fixtures and snapshots of this repository, never invented**; a raw name with no alias therefore degrades to its lowercase form instead of disappearing. `data/README.md` documents the file, as it does for pricing and subscriptions.
+
+  **Task class (S2).** Derived per session, computed in SQL: `feature` when the session has at least one `turn_commits` row through its turns **or** at least one `subagent_runs` row with `parent_session_id = session`; otherwise `inline` when it has a `session_repos` row; otherwise `unknown`. Correction lives in migration `010_session_task_classes.sql`, additive: `session_task_classes(session_id VARCHAR PRIMARY KEY, task_class VARCHAR NOT NULL CHECK (task_class IN ('feature','inline')), updated_at TIMESTAMPTZ NOT NULL DEFAULT current_timestamp)`. It is user data, never rewritten by ingest. Effective class = correction if present, else derived; the API always reports `source: "derived" | "corrected"`.
+
+  **Error status (S5).** Core exposes a capability map of agents whose adapter records tool errors; `codex` is absent, so every tools/agents payload carries `errorStatusKnown: false` for it and the UI renders that cell as unknown, never as `0` or `0%`.
+
+  **`GET /api/tools?from=&to=`** (same period rules as the Summary/Explorer: UTC, inclusive `from`, exclusive `to`, defaults like the other views) returns `{ period: { from, to }, tools: ToolRow[], daily: DailyRow[], byAgent: AgentRow[] }` where `ToolRow = { tool, rawNames: string[], calls, errors, errorStatusKnown, turns, sharedTurns, durationKnownMs, durationAvgKnownMs | null, tokens: { input, output, cacheRead, cacheWrite, total }, computedCostUsd | null, reportedCostUsd | null, costKnownTurns, costUnknownTurns }`. `calls`, `errors` and the durations are per call (`tool_calls`); `turns`, `sharedTurns`, `tokens` and the costs belong to the turns that used the tool and are therefore **overlapping across rows** (`sharedTurns` counts turns where the tool was one of two or more), exactly as S3 states. `daily: { day, tool, tokens }[]` is turn-level pace, restricted to the tools the response lists. `byAgent: { agent, rawName, tool, calls, errors, errorStatusKnown }[]` keeps the raw name visible so the mapping can be audited.
+
+  **`GET /api/agents?from=&to=`** returns `{ period, classes: ["feature","inline","unknown"], rows: AgentClassRow[], totals: { derivedSessions, correctedSessions } }` where `AgentClassRow = { taskClass, source, agent, sessions, turns, tokens: {…}, computedCostUsd | null, reportedCostUsd | null, cacheHitRatio | null }`. One row per (task class, source, agent) so the view can show derived and corrected sessions apart (S2).
+
+  **`PUT /api/sessions/:id/task-class`** body `{ "taskClass": "feature" | "inline" | null }` (strict JSON, same Origin/content-type guards as the other POST/PUT routes, `null` clears the correction) returns `{ sessionId, taskClass, source }`; `400` invalid body, `404` unknown session. `GET /api/sessions/:id` gains `taskClass: { value, source }`, additive.
+
+  **Explorer (S4).** The `tool` dimension of `POST /api/explorer/query` groups by canonical name instead of the raw one, keeping its existing semantics (a turn counts once per distinct tool, groups overlap, `null` group for turns without tool calls). This changes values a delivered contract returns, hence its own commit and its own risk line.
+
+  **Web (S6, S7).** Two views in the shape of `apps/web/src/git/`: period `SegmentedControl`, summary sentence, one chart via `apps/web/src/explorer/Chart.tsx` with `ChartExport`, tables with `TableExport`. Tools: table of every tool with calls, errors (unknown for codex), duration, turns, tokens and cost, plus the overlapping-values warning and the raw-name-by-agent table; chart of daily tokens of the top tools. Agents: comparison table of task class × agent and a chart, with a filter by class and a per-session correction control reachable from the Session view (a `SegmentedControl` writing the new endpoint, showing whether the class is derived or corrected). Both routes drop their `phase: 2` placeholder, keep their `nav.*` labels, and every visible string is an `es`/`en` key. No new dependency.

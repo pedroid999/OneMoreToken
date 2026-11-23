@@ -133,6 +133,7 @@ const detailBody = (): SessionDetail => ({
       tokens: 1_200_000,
     },
   ],
+  taskClass: { value: "unknown", source: "derived" },
 });
 
 const json = (body: unknown, status = 200) =>

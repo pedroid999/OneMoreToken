@@ -1,4 +1,7 @@
 import type { Stats } from "node:fs";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { PI_ADAPTER_VERSION, parsePi } from "@omt/adapters";
 import {
   type Database,
   hashContent,
@@ -6,6 +9,7 @@ import {
   migrate,
   openDatabase,
   PricingFileSchema,
+  persistBatch,
   recordId,
   sourceFileId,
 } from "@omt/core";
@@ -433,7 +437,8 @@ describe("GET /api/sessions/:id (S10, L21 API: detail and context curve)", () =>
   it("keeps every existing field and returns no commits when none is attributed", async () => {
     const body = await detailBody(PARENT);
     expect(Object.keys(body).sort()).toEqual(
-      ["children", "commits", "parent", "pricing", "session", "turns"].sort(),
+      // `taskClass` is the additive field of phase 5 (L3); everything else is unchanged.
+      ["children", "commits", "parent", "pricing", "session", "taskClass", "turns"].sort(),
     );
     expect(body.commits).toEqual([]);
     expect(body.pricing).toEqual({ basis: expect.any(String), observedAt: expect.anything() });
@@ -537,5 +542,146 @@ describe("sessions API queueing", () => {
     expect((await listed).status).toBe(200);
     expect((await detail).status).toBe(200);
     all.mockRestore();
+  });
+});
+
+const put = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+  createApp(db).request(path, {
+    method: "PUT",
+    headers: { "content-type": "application/json", ...headers },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+
+describe("session task class (spec §7.3, phase 5 S2/L3)", () => {
+  it("reports the derived class of the session in GET /api/sessions/:id", async () => {
+    const body = await detailBody(PARENT);
+    // No commit attribution, no subagent run and no resolved repository: the data cannot tell.
+    expect(body.taskClass).toEqual({ value: "unknown", source: "derived" });
+  });
+
+  it("derives inline from a resolved repository and feature from a subagent run", async () => {
+    await db.run("INSERT INTO session_repos VALUES ($1, '/synthetic/repo')", [PARENT]);
+    await db.run(
+      "INSERT INTO subagent_runs (id, parent_session_id, role) VALUES ('r1', $1, 'build')",
+      [CHILD],
+    );
+    expect((await detailBody(PARENT)).taskClass).toEqual({ value: "inline", source: "derived" });
+    expect((await detailBody(CHILD)).taskClass).toEqual({ value: "feature", source: "derived" });
+  });
+
+  it("stores a correction and reports it as corrected, no-store", async () => {
+    const response = await put(`/api/sessions/${PARENT}/task-class`, { taskClass: "feature" });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      sessionId: PARENT,
+      taskClass: "feature",
+      source: "corrected",
+    });
+    expect((await detailBody(PARENT)).taskClass).toEqual({
+      value: "feature",
+      source: "corrected",
+    });
+    // Replacing the correction keeps one row per session.
+    await put(`/api/sessions/${PARENT}/task-class`, { taskClass: "inline" });
+    expect((await detailBody(PARENT)).taskClass).toEqual({ value: "inline", source: "corrected" });
+    expect(await db.all("SELECT * FROM session_task_classes")).toMatchObject([
+      { session_id: PARENT, task_class: "inline" },
+    ]);
+  });
+
+  it("clears the correction with null and falls back to the derived class", async () => {
+    await put(`/api/sessions/${CHILD}/task-class`, { taskClass: "inline" });
+    expect((await detailBody(CHILD)).taskClass).toEqual({ value: "inline", source: "corrected" });
+    const response = await put(`/api/sessions/${CHILD}/task-class`, { taskClass: null });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      sessionId: CHILD,
+      taskClass: "unknown",
+      source: "derived",
+    });
+    expect(await db.all("SELECT * FROM session_task_classes")).toEqual([]);
+    expect((await detailBody(CHILD)).taskClass).toEqual({ value: "unknown", source: "derived" });
+  });
+
+  it("survives a re-ingest of the same source", async () => {
+    const content = readFileSync(
+      fileURLToPath(
+        new URL("../../../packages/adapters/pi/fixtures/session.jsonl", import.meta.url),
+      ),
+      "utf8",
+    );
+    const context = {
+      agent: "pi",
+      path: "/synthetic/reingested/session.jsonl",
+      adapterVersion: PI_ADAPTER_VERSION,
+      ingestedAt: from,
+      pricing: loadPricing(),
+    };
+    const batch = parsePi(content, context);
+    await persistBatch(db, batch, hashContent(content), currentHash);
+    const id = batch.sessions[0]?.id;
+    if (!id) throw new Error("Expected the fixture to hold one session");
+    expect((await detailBody(id)).taskClass.source).toBe("derived");
+    await put(`/api/sessions/${id}/task-class`, { taskClass: "feature" });
+    // The same session id is upserted; the correction is user data and is never rewritten by ingest.
+    await persistBatch(db, parsePi(content, context), hashContent(content), currentHash);
+    expect((await detailBody(id)).taskClass).toEqual({ value: "feature", source: "corrected" });
+  });
+
+  it.each([
+    ["an empty object", {}],
+    ["a missing field", { taskClassX: "feature" }],
+    ["an unknown class", { taskClass: "unknown" }],
+    ["a wrongly cased class", { taskClass: "Feature" }],
+    ["a non-string class", { taskClass: 1 }],
+    ["an extra key", { taskClass: "feature", source: "corrected" }],
+    ["an array", ["feature"]],
+    ["a null body", "null"],
+    ["malformed JSON", "{"],
+  ])("rejects %s with 400 and stores nothing", async (_label, body) => {
+    const response = await put(`/api/sessions/${PARENT}/task-class`, body);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid task class" });
+    expect(await db.all("SELECT * FROM session_task_classes")).toEqual([]);
+  });
+
+  it("rejects an invalid session id with 400 before any write", async () => {
+    const response = await put("/api/sessions/not-a-session/task-class", { taskClass: "feature" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid session id" });
+    expect(await db.all("SELECT * FROM session_task_classes")).toEqual([]);
+  });
+
+  it("returns 404 for a session that was never ingested", async () => {
+    const response = await put(`/api/sessions/${sid("missing")}/task-class`, {
+      taskClass: "feature",
+    });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "session not found" });
+    expect(await db.all("SELECT * FROM session_task_classes")).toEqual([]);
+  });
+
+  it("shares the Origin, content-type and Host guards of the other writes", async () => {
+    const forbidden = await put(
+      `/api/sessions/${PARENT}/task-class`,
+      { taskClass: "feature" },
+      { origin: "https://evil.example" },
+    );
+    expect(forbidden.status).toBe(403);
+    expect(await forbidden.json()).toEqual({ error: "forbidden origin" });
+    const notJson = await put(`/api/sessions/${PARENT}/task-class`, "taskClass=feature", {
+      "content-type": "text/plain",
+    });
+    expect(notJson.status).toBe(415);
+    expect(await notJson.json()).toEqual({ error: "application/json required" });
+    const foreignHost = await createApp(db).request(`/api/sessions/${PARENT}/task-class`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", host: "evil.example" },
+      body: JSON.stringify({ taskClass: "feature" }),
+    });
+    expect(foreignHost.status).toBe(403);
+    expect(await foreignHost.json()).toEqual({ error: "forbidden host" });
+    expect(await db.all("SELECT * FROM session_task_classes")).toEqual([]);
   });
 });

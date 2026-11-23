@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "tools": [
+    { "id": "bash", "aliases": ["bash", "exec", "execute", "shell"] },
+    { "id": "edit", "aliases": ["edit"] },
+    { "id": "grep", "aliases": ["grep"] },
+    { "id": "list", "aliases": ["list"] },
+    { "id": "read", "aliases": ["read"] },
+    { "id": "task", "aliases": ["spawn_agent"] }
+  ]
+}
