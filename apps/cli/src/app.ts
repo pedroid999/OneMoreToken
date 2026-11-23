@@ -7,6 +7,7 @@ import {
   syncCalibrations,
 } from "@omt/core";
 import { type Context, Hono } from "hono";
+import { readAgents } from "./agents/service";
 import { listCalibrations } from "./calibrations/list";
 import {
   CalibrationError,
@@ -30,6 +31,11 @@ import { readProfiles } from "./profiles/service";
 import { readQuotas } from "./quotas/service";
 import { isSessionId, parseSessionsQuery, readSession, readSessions } from "./sessions/service";
 import {
+  MAX_TASK_CLASS_BYTES,
+  parseTaskClassInput,
+  writeSessionTaskClass,
+} from "./sessions/task-class";
+import {
   InvalidSqlError,
   MAX_SQL_BYTES,
   parseSqlBody,
@@ -41,6 +47,7 @@ import {
 } from "./sql/service";
 import { createSavedQueryStore, SavedQueryError } from "./sql/views";
 import { readSummary, summaryPeriod } from "./summary/service";
+import { readTools } from "./tools/service";
 import { createViewStore, MAX_VIEW_BYTES, ViewError, type ViewStoreOptions } from "./views/store";
 
 export interface Health {
@@ -63,6 +70,8 @@ export interface AppOptions {
   sql?: { directory?: string; timeoutMs?: number };
   /** Clock for quota windows and pace projection; tests pin it. */
   quotas?: { now?: () => number };
+  /** Canonical tool catalogue; tests pass a temporary file instead of data/tools.json. */
+  tools?: { cataloguePath?: string };
 }
 
 /** Explorer bodies are small: 2 dimensions, 4 metrics, at most 10 filters of 50 values. */
@@ -146,6 +155,29 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
     return null;
   };
 
+  /** Per-session correction of the task class; `null` clears it (spec §7.3, phase 5 S2/L3). */
+  app.put("/api/sessions/:id/task-class", async (c) => {
+    const rejected = guardWrite(c, true);
+    if (rejected) return rejected;
+    const id = c.req.param("id");
+    if (!isSessionId(id)) return c.json({ error: "invalid session id" }, 400);
+    let input: ReturnType<typeof parseTaskClassInput> = null;
+    try {
+      input = parseTaskClassInput(await readBoundedJson(c.req.raw, MAX_TASK_CLASS_BYTES));
+    } catch {
+      // Malformed or oversized: the same fixed diagnostic as any invalid body.
+    }
+    if (!input) return c.json({ error: "invalid task class" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      const stored = await writeSessionTaskClass(db, id, input);
+      if (!stored) return c.json({ error: "session not found" }, 404);
+      return c.json({ sessionId: id, taskClass: stored.value, source: stored.source });
+    } catch {
+      return c.json({ error: "sessions unavailable" }, 500);
+    }
+  });
+
   app.post("/api/explorer/query", async (c) => {
     const rejected = guardWrite(c, true);
     if (rejected) return rejected;
@@ -158,7 +190,10 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
     if (!request) return c.json({ error: INVALID_EXPLORER_QUERY }, 400);
     c.header("Cache-Control", "no-store");
     try {
-      return c.json(await readExplorer(db, request));
+      const cataloguePath = options.tools?.cataloguePath;
+      return c.json(
+        await readExplorer(db, request, undefined, cataloguePath ? { cataloguePath } : {}),
+      );
     } catch {
       return c.json({ error: "explorer unavailable" }, 500);
     }
@@ -316,6 +351,29 @@ export function createApp(db: Database, options: AppOptions = {}): Hono {
       return c.json(await readGit(db, period));
     } catch {
       return c.json({ error: "git unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/tools", async (c) => {
+    const period = summaryPeriod(new URL(c.req.url).searchParams, quotasNow());
+    if (!period) return c.json({ error: "invalid tools period" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      const cataloguePath = options.tools?.cataloguePath;
+      return c.json(await readTools(db, period, cataloguePath ? { cataloguePath } : {}));
+    } catch {
+      return c.json({ error: "tools unavailable" }, 500);
+    }
+  });
+
+  app.get("/api/agents", async (c) => {
+    const period = summaryPeriod(new URL(c.req.url).searchParams, quotasNow());
+    if (!period) return c.json({ error: "invalid agents period" }, 400);
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readAgents(db, period));
+    } catch {
+      return c.json({ error: "agents unavailable" }, 500);
     }
   });
 
