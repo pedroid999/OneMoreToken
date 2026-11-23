@@ -150,3 +150,9 @@ vite.config.ts.timestamp-*
 
 # Playwright MCP page snapshots can contain real local metrics (privacy, AGENTS.md rule 4)
 .playwright-mcp/
+
+# Packaged artifacts (pnpm --filter @omt/cli build)
+apps/cli/web-dist/
+apps/cli/data/
+apps/cli/migrations/
+apps/cli/dist/

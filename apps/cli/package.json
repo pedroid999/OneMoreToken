@@ -3,18 +3,44 @@
   "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "omt ingest | watch | serve",
+  "description": "One More Token: local dashboard for AI coding agent usage (omt start | serve | ingest | watch)",
+  "publishConfig": {
+    "name": "one-more-token",
+    "access": "public",
+    "bin": {
+      "omt": "./dist/main.js"
+    },
+    "dependencies": {
+      "@duckdb/node-api": "1.5.6-r.1"
+    },
+    "scripts": {
+      "prepublishOnly": "pnpm -w check && pnpm -w build:cli"
+    }
+  },
+  "license": "MIT",
+  "files": [
+    "dist/",
+    "web-dist/",
+    "data/",
+    "migrations/",
+    "README.md"
+  ],
   "bin": {
-    "omt": "./src/main.ts"
+    "omt": "./dist/main.js"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts serve",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "pnpm --filter @omt/web build && rm -rf dist web-dist data migrations && mkdir -p dist web-dist && cp -R ../../data data && cp -R ../../packages/core/migrations migrations && cp -R ../web/dist/. web-dist/ && esbuild src/entry-npm.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/main.js --external:@duckdb/* --external:sqlite3 && node scripts/pack-shebang.mjs && chmod +x dist/main.js"
   },
   "dependencies": {
+    "@duckdb/node-api": "1.5.6-r.1",
     "@hono/node-server": "^2.1.5",
     "@omt/adapters": "workspace:^",
     "@omt/core": "workspace:^",
     "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

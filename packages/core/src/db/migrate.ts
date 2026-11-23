@@ -5,6 +5,11 @@ import type { Database } from "./database";
 
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
+/** Directory for `migrate`. OMT_MIGRATIONS_DIR wins (packaged installs point it at the bundled copy). */
+export function resolveMigrationsDir(env: NodeJS.ProcessEnv = process.env): string {
+  return env.OMT_MIGRATIONS_DIR ?? MIGRATIONS_DIR;
+}
+
 const FILE_PATTERN = /^(\d{3,})_[a-z0-9_]+\.sql$/;
 
 export interface Migration {
@@ -40,7 +45,10 @@ export function listMigrations(dir: string = MIGRATIONS_DIR): Migration[] {
 }
 
 /** Applies pending migrations, each one in its own transaction together with its ledger row. */
-export async function migrate(db: Database, dir: string = MIGRATIONS_DIR): Promise<MigrateResult> {
+export async function migrate(
+  db: Database,
+  dir: string = resolveMigrationsDir(),
+): Promise<MigrateResult> {
   await db.run(
     `CREATE TABLE IF NOT EXISTS schema_migrations (
       version INTEGER PRIMARY KEY,

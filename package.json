@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter @omt/web --filter @omt/cli run dev",
+    "build:cli": "pnpm --filter @omt/cli build",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "typecheck": "pnpm -r --parallel typecheck",
     "lint": "biome check .",
