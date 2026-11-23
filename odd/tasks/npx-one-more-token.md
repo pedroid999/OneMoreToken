@@ -33,3 +33,7 @@ home sessions (748 files), serves /api/health, /, SPA routes and /api/summary (2
 Publishable package verified with publishConfig (name one-more-token, bin omt,
 dependencies @duckdb/node-api only). Slice note: sizes exceeded 400 lines in T3/T4;
 kept one commit per unit anyway (T4 includes packaging config + README).
+L4: Published one-more-token@0.5.0 to npm (user completed publish with security-key 2FA).
+Verified live: npm view shows 0.5.0; `npx one-more-token@0.5.0 --help` runs from the registry.
+Note: publishConfig rewriting was unreliable; publish goes through scripts/stage-publish.mjs
+(commit 48d3f2d). Staging dir removed after publish. Commit 5 closes T5.
