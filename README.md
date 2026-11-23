@@ -6,7 +6,7 @@
   A local dashboard to explore how you use AI coding agents: tokens, cost, subscription quotas and the agent profiles behind them.
 </p>
 
-> **Status:** phases 0 to 4 are released on `main`; phase 5 (the Agents and Tools views, spec §7.3) is in progress on `feat/phase-5-views`.
+> **Status:** phases 0 to 5 are released (v0.5.2): the dashboard ships as an npm package, so `npx one-more-token` is all you need.
 
 ## What it does
 
@@ -27,6 +27,28 @@ One More Token reads the sessions your coding agents already store on your machi
 Everything runs locally. Nothing leaves your machine.
 
 ## Getting started
+
+Requirements: Node 22+.
+
+### The published package (no checkout needed)
+
+```bash
+npx one-more-token
+```
+
+That single command detects the agent session directories on your machine, validates the bundled pricing and subscription data, ingests the sessions into `${XDG_DATA_HOME:-~/.local/share}/one-more-token/omt.duckdb`, serves the API and the dashboard on `http://127.0.0.1:7317` and opens it in your browser. `Ctrl+C` stops it.
+
+```bash
+npx one-more-token --port 8080   # another port (0 picks a free one)
+npx one-more-token --no-open     # do not open the browser
+npx one-more-token --db ~/omt.duckdb
+npx one-more-token serve         # serve without ingesting
+npx one-more-token ingest        # ask a running server to ingest again
+```
+
+The package carries its own copy of `data/` and `migrations/`; `OMT_DATA_DIR`, `OMT_WEB_DIST` and `OMT_MIGRATIONS_DIR` override their locations.
+
+### From this repository
 
 Requirements: Node 22+ and pnpm.
 
