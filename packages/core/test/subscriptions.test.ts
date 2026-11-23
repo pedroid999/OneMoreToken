@@ -68,6 +68,38 @@ describe("loadUserSubscriptions", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("invalid subscriptions config");
   });
+
+  it("accepts an optional model in a match rule", () => {
+    const file = {
+      version: 1,
+      subscriptions: [{ ...claudePro, match: [{ provider: "nan", model: "deepseek-v4-flash" }] }],
+    };
+    expect(loadUserSubscriptions(tempFile(JSON.stringify(file)), plans)).toEqual({
+      ok: true,
+      file,
+    });
+  });
+
+  it.each([
+    [
+      "an empty model",
+      JSON.stringify({
+        version: 1,
+        subscriptions: [{ ...claudePro, match: [{ provider: "nan", model: "" }] }],
+      }),
+    ],
+    [
+      "a non-string model",
+      JSON.stringify({
+        version: 1,
+        subscriptions: [{ ...claudePro, match: [{ provider: "nan", model: 5 }] }],
+      }),
+    ],
+  ])("rejects %s in a match rule", (_name, content) => {
+    const result = loadUserSubscriptions(tempFile(content), plans);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("invalid subscriptions config");
+  });
 });
 
 async function seeded(): Promise<Database> {
@@ -85,6 +117,12 @@ async function seeded(): Promise<Database> {
       ('go-pi', 's-pi', 2, 'assistant', '2026-10-10T13:00:00Z', 'opencode-go'),
       ('go-oc', 's-oc', 0, 'assistant', '2026-10-10T13:00:00Z', 'opencode-go'),
       ('api', 's-pi', 3, 'assistant', '2026-10-10T14:00:00Z', 'anthropic')`,
+  );
+  await db.run(
+    `INSERT INTO turns (id, session_id, idx, role, ts, provider, model) VALUES
+      ('nan-ds', 's-pi', 4, 'assistant', '2026-10-10T15:00:00Z', 'nan', 'deepseek-v4-flash'),
+      ('nan-glm', 's-pi', 5, 'assistant', '2026-10-10T15:10:00Z', 'nan', 'glm5.3-flash'),
+      ('nan-other', 's-pi', 6, 'assistant', '2026-10-10T15:20:00Z', 'nan', 'qwen3.6')`,
   );
   return db;
 }
@@ -119,6 +157,9 @@ describe("syncUserSubscriptions + turn_subscriptions", () => {
       claude: "claude",
       "go-oc": "go",
       "go-pi": "go",
+      "nan-ds": null,
+      "nan-glm": null,
+      "nan-other": null,
     });
     expect(
       await db.all(
@@ -166,6 +207,54 @@ describe("syncUserSubscriptions + turn_subscriptions", () => {
     const result = await attribution(db);
     expect(result["go-oc"]).toBe("go-oc");
     expect(result["go-pi"]).toBe("go-any");
+    db.close();
+  });
+
+  it("matches an optional model and keeps provider-only rules covering every model", async () => {
+    const db = await seeded();
+    await syncUserSubscriptions(
+      db,
+      {
+        version: 1,
+        subscriptions: [
+          {
+            id: "nan-ds",
+            planId: "claude-pro",
+            match: [{ provider: "nan", model: "deepseek-v4-flash" }],
+          },
+          {
+            id: "nan-glm",
+            planId: "claude-pro",
+            match: [{ provider: "nan", model: "glm5.3-flash" }],
+          },
+          { id: "nan-any", planId: "opencode-go", match: [{ provider: "nan" }] },
+        ],
+      },
+      plans,
+    );
+    const result = await attribution(db);
+    expect(result["nan-ds"]).toBe("nan-ds");
+    expect(result["nan-glm"]).toBe("nan-glm");
+    expect(result["nan-other"]).toBe("nan-any");
+    db.close();
+  });
+
+  it("leaves turns unattributed when the rule names a model that never runs", async () => {
+    const db = await seeded();
+    await syncUserSubscriptions(
+      db,
+      {
+        version: 1,
+        subscriptions: [
+          { id: "nan-x", planId: "claude-pro", match: [{ provider: "nan", model: "nope" }] },
+        ],
+      },
+      plans,
+    );
+    const result = await attribution(db);
+    expect(result["nan-ds"]).toBeNull();
+    expect(result["nan-glm"]).toBeNull();
+    expect(result["nan-other"]).toBeNull();
     db.close();
   });
 

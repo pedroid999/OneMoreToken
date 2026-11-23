@@ -5,7 +5,7 @@ import type { Database } from "../db/database";
 
 /**
  * The user's own subscriptions (spec §4, §5): which plan they pay for, since when, and which providers
- * (optionally narrowed to one agent) draw from it. It lives outside the repository, in
+ * (optionally narrowed to one agent or one model) draw from it. It lives outside the repository, in
  * `${XDG_CONFIG_HOME:-~/.config}/one-more-token/subscriptions.json`; plans and limits stay in data/.
  */
 const date = z.iso.date();
@@ -19,7 +19,13 @@ const UserSubscriptionSchema = z
     endedAt: date.optional(),
     match: z
       .array(
-        z.object({ provider: z.string().min(1), agent: z.string().min(1).optional() }).strict(),
+        z
+          .object({
+            provider: z.string().min(1),
+            agent: z.string().min(1).optional(),
+            model: z.string().min(1).optional(),
+          })
+          .strict(),
       )
       .min(1),
   })
@@ -102,11 +108,12 @@ export async function syncUserSubscriptions(
         subscription.endedAt ?? null,
       ]);
       for (const rule of subscription.match) {
-        await db.run("INSERT INTO subscription_rules VALUES ($1, $2, $3, $4)", [
+        await db.run("INSERT INTO subscription_rules VALUES ($1, $2, $3, $4, $5)", [
           position++,
           subscription.id,
           rule.provider,
           rule.agent ?? null,
+          rule.model ?? null,
         ]);
       }
     }

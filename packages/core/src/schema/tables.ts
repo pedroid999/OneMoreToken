@@ -126,6 +126,8 @@ export const SubscriptionRuleSchema = z.object({
   subscription_id: id,
   provider: z.string().min(1),
   agent: nullable(z.string().min(1)),
+  /** Optional model narrowing (spec §5.1: NaN Gentle meters each model separately). */
+  model: nullable(z.string().min(1)),
 });
 
 export const QuotaWindowSchema = z.object({
