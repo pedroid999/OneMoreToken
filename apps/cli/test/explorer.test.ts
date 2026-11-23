@@ -548,7 +548,7 @@ describe("POST /api/explorer/query phase 3 dimensions (S10, L10)", () => {
     await db.run(
       "INSERT INTO subscriptions VALUES ('sub', 'claude-pro', 'p', 'Claude', NULL, NULL)",
     );
-    await db.run("INSERT INTO subscription_rules VALUES (0, 'sub', 'p', NULL)");
+    await db.run("INSERT INTO subscription_rules VALUES (0, 'sub', 'p', NULL, NULL)");
     await db.run(
       `INSERT INTO profiles VALUES ('h1', 'alpha', '{}', $1), ('h2', 'alpha', '{}', $1)`,
       [from],

@@ -65,7 +65,7 @@ describe("omt start", () => {
     });
 
     expect(code).toBe(0);
-    expect(health).toEqual({ status: "ok", schemaVersion: 10 });
+    expect(health).toEqual({ status: "ok", schemaVersion: 11 });
     expect(existsSync(dbPath)).toBe(true);
     expect(opened).toEqual([]);
     // First run: guidance names the detected agents, then ingest metrics, then the URL.

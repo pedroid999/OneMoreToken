@@ -114,6 +114,38 @@
           }
         }
       ]
+    },
+    {
+      "id": "nan-gentle-deepseek",
+      "label": "NaN Gentle · DeepSeek V4 Flash",
+      "provider": "nan",
+      "monthlyPriceUsd": null,
+      "reviewedAt": "2026-11-23",
+      "windows": [
+        {
+          "kind": "monthly",
+          "limit": {
+            "unit": "tokens",
+            "value": 1000000000
+          }
+        }
+      ]
+    },
+    {
+      "id": "nan-gentle-glm53-flash",
+      "label": "NaN Gentle · GLM 5.3 Flash",
+      "provider": "nan",
+      "monthlyPriceUsd": null,
+      "reviewedAt": "2026-11-23",
+      "windows": [
+        {
+          "kind": "monthly",
+          "limit": {
+            "unit": "tokens",
+            "value": 500000000
+          }
+        }
+      ]
     }
   ]
 }

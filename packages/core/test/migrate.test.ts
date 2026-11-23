@@ -53,7 +53,7 @@ describe("migrate", () => {
     const db = await openDatabase(":memory:");
     const result = await migrate(db);
 
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     expect(await tableNames(db)).toEqual(
       [...SPEC_TABLES, "schema_migrations", "ingest_checkpoints"].sort(),
     );
@@ -69,7 +69,7 @@ describe("migrate", () => {
     const ledger = await db.all<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(ledger.map((r) => Number(r.version))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     db.close();
   });
 
@@ -100,7 +100,9 @@ describe("migrate", () => {
     );
     await db.run("INSERT INTO sources VALUES ('old', 'pi', '/synthetic/old', '1', NULL)");
     const before = await db.all("SELECT * FROM sources");
-    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect((await migrate(db)).applied.map((m) => m.version)).toEqual([
+      2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+    ]);
     expect(await db.all("SELECT * FROM sources")).toEqual(before);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual([]);
     db.close();
@@ -118,7 +120,7 @@ describe("migrate", () => {
     const usage = await db.all("SELECT * FROM usage");
     const checkpoints = await db.all("SELECT * FROM ingest_checkpoints");
     expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([
-      3, 4, 5, 6, 7, 8, 9, 10,
+      3, 4, 5, 6, 7, 8, 9, 10, 11,
     ]);
     expect(await db.all("SELECT * FROM usage")).toEqual(usage);
     expect(await db.all("SELECT * FROM ingest_checkpoints")).toEqual(
@@ -143,7 +145,7 @@ describe("migrate", () => {
     const sessions = await db.all("SELECT * FROM sessions");
     const turns = await db.all("SELECT * FROM turns");
     expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([
-      4, 5, 6, 7, 8, 9, 10,
+      4, 5, 6, 7, 8, 9, 10, 11,
     ]);
     expect(await db.all("SELECT * FROM sessions")).toEqual(
       sessions.map((row) => ({ ...row, parent_session_id: null })),
@@ -176,7 +178,7 @@ describe("migrate", () => {
       "INSERT INTO calibrations VALUES ('m', 'plus', 'weekly', '2026-10-20T09:00:00Z', 10, NULL)",
     );
     const calibrations = await db.all("SELECT * FROM calibrations");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([7, 8, 9, 10]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([7, 8, 9, 10, 11]);
     expect(await db.all("SELECT * FROM calibrations")).toEqual(calibrations);
     expect(await db.all("SELECT * FROM provider_quota_readings")).toEqual([]);
     for (const [kind, pct, origin] of [
@@ -205,7 +207,7 @@ describe("migrate", () => {
       "INSERT INTO commits VALUES ('/synthetic/repo', 'abc1234', '2026-10-20T09:00:00Z', NULL, 'feat: x', 1, 0)",
     );
     const commits = await db.all("SELECT * FROM commits");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([8, 9, 10]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([8, 9, 10, 11]);
     expect(await db.all("SELECT * FROM commits")).toEqual(commits);
     for (const table of ["session_repos", "commit_pull_requests", "turn_commits"]) {
       expect(await db.all(`SELECT * FROM ${table}`)).toEqual([]);
@@ -228,7 +230,7 @@ describe("migrate", () => {
     );
     const before = await tableNames(db);
     const commits = await db.all("SELECT * FROM commits");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([9, 10]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([9, 10, 11]);
     expect(await tableNames(db)).toEqual(
       [...before, "alert_notifications", "session_task_classes"].sort(),
     );
@@ -255,7 +257,7 @@ describe("migrate", () => {
     );
     const before = await tableNames(db);
     const sessions = await db.all("SELECT * FROM sessions");
-    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([10]);
+    expect((await migrate(db)).applied.map((entry) => entry.version)).toEqual([10, 11]);
     expect(await tableNames(db)).toEqual([...before, "session_task_classes"].sort());
     expect(await db.all("SELECT * FROM sessions")).toEqual(sessions);
     expect(await db.all("SELECT * FROM session_task_classes")).toEqual([]);
