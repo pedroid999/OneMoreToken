@@ -420,6 +420,12 @@
       "title": "Commits asociados",
       "empty": "Ningún commit tiene turnos de esta sesión asignados.",
       "note": "Líneas por commit; los diffs no se almacenan."
+    },
+    "taskClass": {
+      "label": "Clase de tarea",
+      "value": "tarea: {{value}} ({{source}})",
+      "auto": "Derivada",
+      "error": "No se guardó la clase de tarea. Revisa la API local y reintenta."
     }
   },
   "quota": {
@@ -428,6 +434,55 @@
       "fiveHours": "ventana de 5 horas",
       "weekly": "ventana semanal",
       "monthly": "ventana mensual"
+    }
+  },
+  "taskClass": {
+    "feature": "Feature",
+    "inline": "Inline",
+    "unknown": "Desconocida",
+    "source": {
+      "derived": "derivada",
+      "corrected": "corregida"
+    }
+  },
+  "agents": {
+    "title": "Agentes",
+    "intro": "La misma clase de tarea en cada agente. La clase se deriva por sesión a partir de sus commits y subagentes, y se puede corregir en la vista de sesión.",
+    "error": "Informe de agentes no disponible. Revisa la API local y el periodo (ambos límites ISO, como máximo 366 días UTC) y reintenta.",
+    "headline": "{{derived}} sesiones con clase derivada · {{corrected}} corregidas",
+    "notAvailable": "n/d",
+    "noCost": "—",
+    "filter": {
+      "label": "Filtro de clase de tarea",
+      "all": "Todas las clases"
+    },
+    "comparison": {
+      "title": "Clase de tarea por agente",
+      "filtered": "Ninguna fila coincide con la clase de tarea elegida.",
+      "empty": "Ninguna sesión tiene clase de tarea en este periodo."
+    },
+    "chart": {
+      "title": "Sesiones por clase de tarea",
+      "chartName": "Sesiones por clase de tarea y agente",
+      "taskClass": "Clase de tarea",
+      "agent": "Agente",
+      "sessions": "Sesiones"
+    },
+    "column": {
+      "taskClass": "Clase de tarea",
+      "source": "Origen de la clase",
+      "agent": "Agente",
+      "sessions": "Sesiones",
+      "turns": "Turnos",
+      "tokens": "Tokens",
+      "computedCost": "Coste calculado",
+      "reportedCost": "Coste reportado",
+      "cacheHitRatio": "Acierto de caché"
+    },
+    "empty": {
+      "title": "Sin sesiones en este periodo",
+      "body": "Ingesta tus sesiones locales de agentes o elige un periodo más largo.",
+      "command": "pnpm omt ingest"
     }
   },
   "settings": {
@@ -619,6 +674,54 @@
     "notApplicable": "n/a",
     "yes": "Sí",
     "no": "No"
+  },
+  "tools": {
+    "title": "Herramientas",
+    "intro": "Las llamadas, los errores y la duración se cuentan por llamada. Los turnos, los tokens y el coste pertenecen a los turnos en los que se usó la herramienta.",
+    "overlap": "Las cifras de turno se solapan entre filas: un turno que usó tres herramientas cuenta sus tokens y coste en las tres, así que no se pueden sumar.",
+    "headline": "{{calls}} llamadas en {{tools}} herramientas · {{tokens}} tokens en los turnos que las usaron",
+    "errorsUnknownNote": "Un agente que no registra errores de herramienta muestra el recuento como desconocido, no como cero.",
+    "error": "Informe de herramientas no disponible. Revisa la API local y el periodo (ambos límites ISO, como máximo 366 días UTC) y reintenta.",
+    "unknown": "Desconocido",
+    "noValue": "—",
+    "seconds": "{{value}} s",
+    "chart": {
+      "title": "Tokens diarios por herramienta",
+      "chartName": "Tokens diarios de las herramientas que más consumen",
+      "note": "Las {{count}} herramientas con más tokens; el resto solo aparecen en la tabla.",
+      "empty": "Sin tokens diarios por herramienta en este periodo.",
+      "day": "Día · UTC",
+      "tokens": "Tokens",
+      "tool": "Herramienta"
+    },
+    "table": {
+      "title": "Por herramienta",
+      "empty": "Sin llamadas a herramientas en este periodo."
+    },
+    "raw": {
+      "title": "Nombres crudos por agente",
+      "body": "El nombre canónico mapea el nombre crudo que registra cada agente; ambos se listan para auditar el mapeo.",
+      "empty": "Sin llamadas a herramientas por agente en este periodo."
+    },
+    "column": {
+      "tool": "Herramienta",
+      "calls": "Llamadas",
+      "errors": "Errores",
+      "duration": "Duración",
+      "avgDuration": "Duración media",
+      "turns": "Turnos",
+      "sharedTurns": "Turnos compartidos",
+      "tokens": "Tokens",
+      "computedCost": "Coste calculado",
+      "reportedCost": "Coste reportado",
+      "agent": "Agente",
+      "rawName": "Nombre crudo"
+    },
+    "empty": {
+      "title": "Sin llamadas a herramientas en este periodo",
+      "body": "Ingesta tus sesiones locales de agentes o elige un periodo más largo.",
+      "command": "pnpm omt ingest"
+    }
   },
   "sql": {
     "title": "Consola SQL",

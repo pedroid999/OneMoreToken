@@ -1,0 +1,55 @@
+/* Agents view (spec §7.1.6, §7.3). Design tokens only (spec §8.2). */
+
+.agents__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.agents .panel,
+.agents .state {
+  margin-top: var(--space-6);
+}
+
+.agents__muted {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.agents__headline {
+  margin: var(--space-4) 0 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.agents__chart {
+  overflow-x: auto;
+}
+
+.agents__table-wrap {
+  overflow-x: auto;
+}
+
+.agents__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.agents__table th,
+.agents__table td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-thin) solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+}
+
+.agents__table thead th {
+  color: var(--color-fg-muted);
+}
+
+.agents__table [data-numeric="true"] {
+  text-align: end;
+}
