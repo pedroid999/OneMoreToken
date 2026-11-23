@@ -240,12 +240,13 @@ Quota is attributed by subscription, not by agent (spec §4, §5): several agent
   "version": 1,
   "subscriptions": [
     { "id": "claude-pro", "planId": "claude-pro", "match": [{ "provider": "claude-bridge" }, { "provider": "anthropic", "agent": "claude-code" }] },
-    { "id": "chatgpt-plus", "planId": "chatgpt-plus", "match": [{ "provider": "openai-codex" }] },
+    { "id": "chatgpt-plus", "planId": "chatgpt-plus", "match": [{ "provider": "openai-codex" }, { "provider": "openai", "agent": "codex" }] },
     { "id": "opencode-go", "planId": "opencode-go", "startedAt": "2026-10-01", "match": [{ "provider": "opencode-go" }] }
   ]
 }
 ```
 
+- Codex runs under two provider ids: Codex CLI sessions store `provider: "openai"` (its own `model_provider`), while Codex hosted in Pi/gentle-shell stores `provider: "openai-codex"`. A ChatGPT Plus subscription therefore usually needs both rules; restrict the `openai` one to `agent: "codex"` so standalone OpenAI API usage (e.g. from OpenCode) stays pay-as-you-go.
 - `planId` must exist in `data/subscriptions.json`; `label`, `startedAt` and `endedAt` (inclusive ISO dates) are optional. Each `match` rule names a turn `provider` and optionally an `agent` or a `model` (e.g. the NaN Gentle plan meters DeepSeek V4 Flash and GLM 5.3 Flash with separate token allowances). A turn belongs to the first subscription, in file order, with a matching rule inside its dates; turns without a match count as pay-as-you-go API usage.
 - Attribution is computed at query time, so editing the file never needs a re-ingest. A missing file means no subscriptions; an invalid one is reported and ignored.
 - Calibrations are the % you read in each provider console (Claude `/usage`, Codex `/status`, the OpenCode Go dashboard). Enter them in the Burn rate view; they are stored in `${XDG_DATA_HOME:-~/.local/share}/one-more-token/calibrations.json` (mode 0600, written atomically, never through a symlink and never over a file that fails validation), since nothing else can rebuild them.
