@@ -1,5 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
-import { join, normalize } from "node:path";
+import { join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -50,7 +50,7 @@ export async function readWebFile(
   if (urlPath.includes("\0")) return null;
   const root = normalize(dist);
   const target = normalize(join(root, urlPath === "/" ? "index.html" : urlPath));
-  if (!target.startsWith(root)) return null;
+  if (!target.startsWith(root + sep)) return null;
 
   const file = (await exists(target)) ? target : join(root, "index.html");
   if (!(await exists(file))) return null;

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, parse } from "node:path";
 import { type Database, migrate, openDatabase } from "@omt/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
@@ -58,6 +58,18 @@ describe("built dashboard static serving", () => {
     expect(await readWebFile(dir, "../index.html")).toBeNull();
     expect(await readWebFile(dir, "/../secrets.txt")).toBeNull();
     expect(await readWebFile(dir, "assets/../../outside.txt")).toBeNull();
+  });
+
+  it("rejects sibling directories sharing the dist path prefix", async () => {
+    dir = makeDist();
+    const sibling = `${dir}-backup`;
+    mkdirSync(sibling, { recursive: true });
+    writeFileSync(join(sibling, "secret.txt"), "leak\n");
+    try {
+      expect(await readWebFile(dir, `/../${parse(dir).name}-backup/secret.txt`)).toBeNull();
+    } finally {
+      rmSync(sibling, { recursive: true, force: true });
+    }
   });
 
   it("falls back to index.html for unknown non-API paths (SPA routes)", async () => {
